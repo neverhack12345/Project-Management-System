@@ -55,3 +55,21 @@ If conflict occurs (`VERSION_CONFLICT`), re-read project and retry with latest t
 1. Use any MCP tool call (for example `list_projects`).
 2. Auto-ops due-check runs in the background.
 3. Call `get_ops_state` to confirm whether daily/weekly/monthly tasks executed.
+
+## 9) Queue and process incoming events
+
+1. Call `enqueue_incoming_event`:
+   - `title`: `"Customer escalation: export timeout"`
+   - `description`: `"Exports fail above 5k rows"`
+   - `urgency`: `"high"`
+   - `owner`: `"unassigned"`
+2. Call `process_incoming_events` with `{ "dryRun": true, "maxEvents": 20 }`.
+3. Re-run with `{ "dryRun": false, "maxEvents": 20 }`.
+4. Call `list_incoming_events` to inspect `pending`, `resolved`, and `failed` rows.
+
+## 10) Resolve safe playbook actions in batch
+
+1. Call `resolve_safe_playbook_actions` with `{ "dryRun": true, "maxActions": 20 }`.
+2. Review `results` and `remaining`.
+3. Re-run with `{ "dryRun": false, "maxActions": 20 }`.
+4. Call `get_actionable_playbook` to confirm remaining manual actions.

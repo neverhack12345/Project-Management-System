@@ -25,7 +25,7 @@ import {
   buildTimeline,
   computeHealth
 } from "./indexer.js";
-import { getPortfolioActivity, getProjectHistory } from "./git-history.js";
+import { getPortfolioActivity } from "./git-history.js";
 import { readOpsState, runDueOps } from "./auto-ops.js";
 import { buildActionQueue, writeActionQueueReport } from "./action-playbook.js";
 import { resolveSafePlaybookActions } from "./playbook-resolver.js";
@@ -416,13 +416,20 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   if (uri === "resource://scripts") {
     const payload = {
       scripts: [
+        "new-project.mjs",
         "validate.mjs",
+        "stale-report.mjs",
         "weekly-review.mjs",
         "alerts.mjs",
+        "snapshot.mjs",
         "build-search-index.mjs",
         "impact-check.mjs",
         "migrate-schema.mjs",
-        "pr-summary.mjs"
+        "pr-summary.mjs",
+        "run-ops.mjs",
+        "triage-resolve.mjs",
+        "intake-process.mjs",
+        "mcp-smoke.mjs"
       ]
     };
     return { contents: [{ uri, mimeType: "application/json", text: JSON.stringify(payload, null, 2) }] };

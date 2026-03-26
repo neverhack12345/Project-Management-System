@@ -1,201 +1,87 @@
 # Project Management System
 
-Markdown-first project and milestone tracker with:
-- project folders as source of truth
-- dashboard search, calendar, gantt, dependency, and health views
-- command palette, bulk project updates, and personal alert digest controls
-- markdown write APIs with conflict protection (`versionToken`)
-- operational reports (weekly review, alerts, impact, PR summary)
-- local stdio MCP server for AI agents (full-admin tool surface)
+Markdown-first project and milestone tracker with dashboard UI, automation playbooks, and local MCP support for agents.
 
-## Quick start
+## Quick Start
 
 1. `npm install`
 2. `npm run new:project -- --name "My Project" --owner "You"`
 3. `npm run dev`
 4. Open [http://localhost:3000](http://localhost:3000)
 
-## Project layout
+## Production Documentation
 
-- `projects/<project-slug>/README.md` - canonical metadata
-- `projects/<project-slug>/spec.md` - requirements/spec
-- `projects/<project-slug>/research.md` - research notes
-- `projects/<project-slug>/milestones.md` - milestones and dependencies
-- `projects/<project-slug>/tasks.md` - task list
+- Start here: `docs/PRODUCTION_HANDBOOK.md`
+- Agent workflows: `docs/AGENT_PLAYBOOK.md`
+- MCP contracts: `docs/MCP_TOOL_REFERENCE.md`
+- CLI ops commands: `docs/CLI_OPS_REFERENCE.md`
+- Human UI usage: `docs/UI_USER_GUIDE.md`
+- Operations runbook: `docs/OPS_RUNBOOK.md`
 
-Schema reference: `docs/SCHEMA.md`
+## Role-Based Navigation
 
-Strategy reference: `docs/COMPETITIVE_GAP_ANALYSIS.md`
-
-## MCP for AI agents
-
-- Start server: `npm run mcp:start`
-- Smoke test: `npm run mcp:smoke`
-- Docs:
+- Agent:
+  - `docs/AGENT_PLAYBOOK.md`
   - `docs/MCP_USAGE.md`
   - `docs/MCP_EXAMPLES.md`
+  - `docs/MCP_TOOL_REFERENCE.md`
+- Operator (UI):
+  - `docs/UI_USER_GUIDE.md`
+- Maintainer/on-call:
+  - `docs/OPS_RUNBOOK.md`
+  - `docs/CLI_OPS_REFERENCE.md`
 
-## Core scripts
+## Core Commands
 
-- `npm run validate` - schema/date/status validation
-- `npm run review:weekly` - weekly markdown summary
-- `npm run alerts` - threshold-based alert report
-- `npm run impact` - impact report from git diffs
-- `npm run search:index` - rebuild local search index
-- `npm run migrate:schema` - normalize schema version fields
-- `npm run pr:summary` - generate project-focused PR summary
-- `npm run stale` - stale project report
-- `npm run snapshot` - write daily metrics snapshot for trend tracking
-- `npm run ops:daily` - run daily automation bundle
-- `npm run ops:weekly` - run weekly automation bundle
-- `npm run ops:triage` - run validation, auto-process incoming events, auto-resolve safe playbook actions, then refresh reports
-- `npm run ops:intake` - auto-process pending incoming events
-- `npm run mcp:start` - start local stdio MCP server
-- `npm run mcp:smoke` - run MCP smoke validation
+- `npm run validate` -> schema/date/status validation
+- `npm run review:weekly` -> weekly markdown report
+- `npm run alerts` -> threshold-based alert report
+- `npm run impact` -> impact report from git diffs
+- `npm run search:index` -> rebuild local search index
+- `npm run migrate:schema` -> normalize schema version fields
+- `npm run pr:summary` -> generate project-focused PR summary
+- `npm run snapshot` -> write daily trend snapshot
+- `npm run ops:daily` -> daily automation bundle
+- `npm run ops:weekly` -> weekly automation bundle
+- `npm run ops:triage` -> validate + intake processing + safe playbook resolution + reports
+- `npm run ops:intake` -> process pending incoming events
+- `npm run mcp:start` -> start local stdio MCP server
+- `npm run mcp:smoke` -> MCP smoke validation
 
-## Phase 1 productivity features
+## Data and Layout
 
-- Command palette in dashboard (`Ctrl/Cmd+K`) for quick focus/search/status commands.
-- Bulk project updates from the dashboard (`status` and/or `priority`) across selected visible projects.
-- Personal alert digest controls (overdue/stale/blocked toggles + quiet-hours preference).
-- Recurring task schema v1 in `tasks.md`:
-  - format: `- [ ] task text [recur:daily|weekly|monthly]`
-  - quick-add UI now supports recurrence selection.
+- `projects/<project-slug>/README.md` -> canonical metadata
+- `projects/<project-slug>/spec.md` -> requirements/spec
+- `projects/<project-slug>/research.md` -> research notes
+- `projects/<project-slug>/milestones.md` -> milestones and dependencies
+- `projects/<project-slug>/tasks.md` -> task list
+- `reports/` -> ops outputs, queues, snapshots
 
-## Phase 2 explainable planning features
+References:
+- `docs/SCHEMA.md`
+- `docs/COMPETITIVE_GAP_ANALYSIS.md`
 
-- Dependency explainability panel now surfaces concrete blocked paths and invalid-ref repair hints.
-- Status transitions to `blocked` or `done` now require a decision note in the dashboard.
-- Decision notes are appended to `reports/decision-log.ndjson` for local auditability.
-- Pre-stale nudges are now emitted by alerts (`preStaleEarly`, `preStaleLate`) before stale threshold.
-- Action queue now includes rescue actions for pre-stale projects.
+## Fast Operational Loops
 
-## Phase 3 personal capacity + intake features
+- Daily low-friction:
+  - `npm run ops:triage -- --maxEvents 20 --maxActions 20`
+- Dry-run preview:
+  - `npm run ops:triage -- --dryRun --maxEvents 20 --maxActions 20`
+- Intake-only:
+  - `npm run ops:intake -- --maxEvents 20`
 
-- Personal capacity API and dashboard card:
-  - endpoint: `GET /api/capacity?days=7&hoursPerDay=6`
-  - uses `estimateHours` from project `README.md` frontmatter.
-- Local time-entry logging:
-  - `POST /api/time-entries`
-  - `GET /api/time-entries?days=14`
-  - append-only storage in `reports/time-entries.ndjson`.
-- Intake forms:
-  - definitions in `forms/intake.json`
-  - `GET /api/intake/forms`
-  - `POST /api/intake/submit` with built-in `quick-task` and `quick-project`.
-  - Incoming queue:
-    - `POST /api/intake/events` to enqueue incoming work
-    - `GET /api/intake/events` to inspect queued/resolved/failed events
-    - `POST /api/intake/process` to auto-resolve pending events (`dryRun`, `maxEvents`)
-    - storage: `reports/incoming-events.ndjson`
+## Troubleshooting (Quick)
 
-## Phase 4 automation + portability features
-
-- Automation rules v1:
-  - config file: `config/automation-rules.json`
-  - `GET /api/automation/rules`
-  - `PUT /api/automation/rules`
-  - `POST /api/automation/run` with `dryRun` support
-  - replay inspection: `GET /api/automation/runs`
-- Migration preview assistant:
-  - `POST /api/migration/preview` for field mapping + validation issues.
-- Workspace snapshot export:
-  - `POST /api/workspace/export-snapshot`
-  - output: `reports/workspace-snapshot/workspace-snapshot-latest.json`.
-
-## File/flag auto-ops trigger model
-
-- State file: `reports/ops-state.json`
-- Lock file: `reports/ops-state.lock`
-- Daily/weekly/monthly tasks run automatically when the website/API or MCP server is accessed.
-- Runs are throttled with a cooldown window to avoid repeated executions on every request.
-- If a run fails, error details are persisted in `ops-state.json` and services continue running.
-- Ops status is visible in:
-  - dashboard card: **Auto Ops Status**
-  - API: `GET /api/ops-state`
-  - MCP tool: `get_ops_state`
-- Run order when due: monthly -> weekly -> daily.
-
-## Actionable Alert Playbooks
-
-- API: `GET /api/playbook/actions`
-- Dashboard: **Action Queue** card with one-click execution for safe actions
-- MCP:
-  - `get_actionable_playbook`
-  - `run_playbook_action` (`dryRun` supported)
-  - `resolve_safe_playbook_actions` (`dryRun` and `maxActions` supported)
-- Report artifact: `reports/action-queue-latest.json`
-
-Playbook actions are generated from existing alert and dependency signals and prioritized for execution. Safe actions reuse existing write APIs and require `versionToken` protection to prevent stale writes.
-
-### Fastest low-friction triage loop
-
-- One command: `npm run ops:triage`
-- Optional preview: `npm run ops:triage -- --dryRun --maxEvents 20 --maxActions 20`
-- What it does:
-  - validates project metadata
-  - auto-processes pending incoming events
-  - regenerates alerts
-  - applies all safe playbook actions in one pass
-  - regenerates alerts and weekly review for an updated queue
-
-### Fastest incoming-event loop
-
-- Queue new incoming work:
-  - API: `POST /api/intake/events`
-  - MCP: `enqueue_incoming_event`
-- Auto-process pending events:
-  - Command: `npm run ops:intake -- --dryRun --maxEvents 20`
-  - API: `POST /api/intake/process`
-  - MCP: `process_incoming_events`
-- Routing behavior:
-  - event type inferred as `task` or `project` (keywords + estimateHours)
-  - urgency maps to due window (`critical=3`, `high=7`, `medium=14`, `low=30`)
-  - tasks route to provided `projectSlug` or best active fallback project
-
-## Ops cadence
-
-| Cadence | Core commands | Outcome |
-|---|---|---|
-| Daily | `npm run validate`<br>`npm run alerts`<br>`npm run review:weekly` | Up-to-date status and risk visibility |
-| Weekly | `npm run migrate:schema`<br>`npm run validate`<br>`npm run impact`<br>`npm run pr:summary` | Strong data quality and collaboration context |
-| Monthly | `npm run search:index`<br>`npm run alerts`<br>`npm run review:weekly`<br>portfolio/archive cleanup | Reduced drift and improved signal quality |
-
-## New teammate quick start (15 min)
-
-1. `npm install` and `npm run validate`
-2. `npm run dev` and review dashboard
-3. `npm run alerts` and `npm run review:weekly`
-4. `npm run mcp:smoke` (if using agent workflows)
-5. Read:
-   - `docs/SCHEMA.md`
-   - `docs/MCP_USAGE.md`
-   - `docs/MCP_EXAMPLES.md`
-
-## Troubleshooting
-
-- **Validation fails with missing metadata**
-  - Run `npm run migrate:schema`, then `npm run validate`.
-  - Confirm required fields in `projects/<slug>/README.md` match `docs/SCHEMA.md`.
-
-- **No alerts or weekly report output**
-  - Run `npm run alerts` and `npm run review:weekly`.
-  - Check generated files in `reports/`.
-
-- **Impact script fails on shallow git history**
-  - Run `npm run impact` again (script falls back to `HEAD` diff).
-  - If needed, provide a custom range in the script invocation flow.
-
-- **Dashboard not loading or stale data**
-  - Restart server: `npm run dev`.
-  - Rebuild index if needed: `npm run search:index`.
-
-- **MCP smoke test fails**
-  - Ensure dependencies are installed: `npm install`.
-  - Re-run: `npm run mcp:smoke`.
-  - Start server directly for debugging: `npm run mcp:start`.
-
-- **Auto ops not running**
-  - Inspect `reports/ops-state.json` (`lastRunStatus`, `lastRunError`, timestamps).
-  - If present, remove stale lock file `reports/ops-state.lock`.
-  - Trigger checks by visiting `/api/ops-state` or calling MCP `get_ops_state`.
+- Validation issues:
+  - `npm run migrate:schema`
+  - `npm run validate`
+- UI data stale:
+  - `npm run alerts`
+  - `npm run review:weekly`
+  - refresh browser
+- MCP issues:
+  - `npm run mcp:smoke`
+  - `npm run mcp:start`
+- Auto-ops issues:
+  - inspect `reports/ops-state.json`
+  - if confirmed stale and no run active, remove `reports/ops-state.lock`
