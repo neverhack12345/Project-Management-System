@@ -48,6 +48,8 @@ Strategy reference: `docs/COMPETITIVE_GAP_ANALYSIS.md`
 - `npm run snapshot` - write daily metrics snapshot for trend tracking
 - `npm run ops:daily` - run daily automation bundle
 - `npm run ops:weekly` - run weekly automation bundle
+- `npm run ops:triage` - run validation, auto-process incoming events, auto-resolve safe playbook actions, then refresh reports
+- `npm run ops:intake` - auto-process pending incoming events
 - `npm run mcp:start` - start local stdio MCP server
 - `npm run mcp:smoke` - run MCP smoke validation
 
@@ -81,6 +83,11 @@ Strategy reference: `docs/COMPETITIVE_GAP_ANALYSIS.md`
   - definitions in `forms/intake.json`
   - `GET /api/intake/forms`
   - `POST /api/intake/submit` with built-in `quick-task` and `quick-project`.
+  - Incoming queue:
+    - `POST /api/intake/events` to enqueue incoming work
+    - `GET /api/intake/events` to inspect queued/resolved/failed events
+    - `POST /api/intake/process` to auto-resolve pending events (`dryRun`, `maxEvents`)
+    - storage: `reports/incoming-events.ndjson`
 
 ## Phase 4 automation + portability features
 
@@ -116,9 +123,35 @@ Strategy reference: `docs/COMPETITIVE_GAP_ANALYSIS.md`
 - MCP:
   - `get_actionable_playbook`
   - `run_playbook_action` (`dryRun` supported)
+  - `resolve_safe_playbook_actions` (`dryRun` and `maxActions` supported)
 - Report artifact: `reports/action-queue-latest.json`
 
 Playbook actions are generated from existing alert and dependency signals and prioritized for execution. Safe actions reuse existing write APIs and require `versionToken` protection to prevent stale writes.
+
+### Fastest low-friction triage loop
+
+- One command: `npm run ops:triage`
+- Optional preview: `npm run ops:triage -- --dryRun --maxEvents 20 --maxActions 20`
+- What it does:
+  - validates project metadata
+  - auto-processes pending incoming events
+  - regenerates alerts
+  - applies all safe playbook actions in one pass
+  - regenerates alerts and weekly review for an updated queue
+
+### Fastest incoming-event loop
+
+- Queue new incoming work:
+  - API: `POST /api/intake/events`
+  - MCP: `enqueue_incoming_event`
+- Auto-process pending events:
+  - Command: `npm run ops:intake -- --dryRun --maxEvents 20`
+  - API: `POST /api/intake/process`
+  - MCP: `process_incoming_events`
+- Routing behavior:
+  - event type inferred as `task` or `project` (keywords + estimateHours)
+  - urgency maps to due window (`critical=3`, `high=7`, `medium=14`, `low=30`)
+  - tasks route to provided `projectSlug` or best active fallback project
 
 ## Ops cadence
 

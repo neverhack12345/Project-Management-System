@@ -19,6 +19,8 @@
     "snapshot": "node scripts/snapshot.mjs",
     "ops:daily": "node scripts/run-ops.mjs --mode daily",
     "ops:weekly": "node scripts/run-ops.mjs --mode weekly",
+    "ops:triage": "node scripts/triage-resolve.mjs",
+    "ops:intake": "node scripts/intake-process.mjs",
     "mcp:start": "node src/mcp-server.js",
     "mcp:dev": "node src/mcp-server.js",
     "mcp:smoke": "node scripts/mcp-smoke.mjs"

@@ -86,7 +86,7 @@ function dueTasks(state) {
   const thisMonth = monthKey();
 
   if (state.lastMonthlyRun !== thisMonth) {
-    tasks.push("migrate-schema.mjs", "search-index.mjs");
+    tasks.push("migrate-schema.mjs", "build-search-index.mjs");
   }
   if (now.getDay() === 1 && state.lastWeeklyRun !== thisMonday) {
     tasks.push("impact-check.mjs", "pr-summary.mjs");

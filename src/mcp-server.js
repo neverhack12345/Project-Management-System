@@ -28,6 +28,8 @@ import {
 import { getPortfolioActivity, getProjectHistory } from "./git-history.js";
 import { readOpsState, runDueOps } from "./auto-ops.js";
 import { buildActionQueue, writeActionQueueReport } from "./action-playbook.js";
+import { resolveSafePlaybookActions } from "./playbook-resolver.js";
+import { enqueueIncomingEvent, listIncomingEvents, processIncomingEvents } from "./intake-automation.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -68,6 +70,52 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "get_trends", description: "Get snapshot trends", inputSchema: { type: "object", properties: { days: { type: "number" } } } },
     { name: "get_ops_state", description: "Get auto-ops state file status", inputSchema: { type: "object", properties: {} } },
     { name: "get_actionable_playbook", description: "Get prioritized actionable alert queue", inputSchema: { type: "object", properties: {} } },
+    {
+      name: "enqueue_incoming_event",
+      description: "Queue an incoming event for automatic triage",
+      inputSchema: {
+        type: "object",
+        required: ["title"],
+        properties: {
+          title: { type: "string" },
+          description: { type: "string" },
+          owner: { type: "string" },
+          urgency: { type: "string" },
+          dueDays: { type: "number" },
+          estimateHours: { type: "number" },
+          projectSlug: { type: "string" },
+          recurrence: { type: "string" },
+          kind: { type: "string" }
+        }
+      }
+    },
+    {
+      name: "list_incoming_events",
+      description: "List recently queued incoming events",
+      inputSchema: { type: "object", properties: { limit: { type: "number" } } }
+    },
+    {
+      name: "process_incoming_events",
+      description: "Process pending incoming events using automatic routing",
+      inputSchema: {
+        type: "object",
+        properties: {
+          dryRun: { type: "boolean" },
+          maxEvents: { type: "number" }
+        }
+      }
+    },
+    {
+      name: "resolve_safe_playbook_actions",
+      description: "Execute all safe playbook actions in one pass",
+      inputSchema: {
+        type: "object",
+        properties: {
+          dryRun: { type: "boolean" },
+          maxActions: { type: "number" }
+        }
+      }
+    },
     {
       name: "run_playbook_action",
       description: "Execute one safe playbook action by actionId",
@@ -229,6 +277,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         await writeActionQueueReport(queue);
         return contentJson(queue);
       }
+      case "enqueue_incoming_event":
+        return contentJson(await enqueueIncomingEvent(args));
+      case "list_incoming_events":
+        return contentJson({ events: await listIncomingEvents({ limit: args.limit }) });
+      case "process_incoming_events":
+        return contentJson(await processIncomingEvents({ dryRun: Boolean(args.dryRun), maxEvents: args.maxEvents }));
       case "run_playbook_action": {
         const projects = await loadAllProjects();
         let alerts = [];
@@ -267,6 +321,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const result = await updateProjectMeta(action.projectSlug, action.suggestedPatch || {});
         return contentJson({ ok: true, actionId: args.actionId, result });
       }
+      case "resolve_safe_playbook_actions":
+        return contentJson(await resolveSafePlaybookActions({ dryRun: Boolean(args.dryRun), maxActions: args.maxActions }));
       case "update_project_status":
         await assertVersionToken(args.slug, args.versionToken);
         return contentJson(await updateProjectStatus(args.slug, args.status));

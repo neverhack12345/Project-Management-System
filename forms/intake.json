@@ -9,6 +9,11 @@
       "id": "quick-project",
       "name": "Quick Project",
       "fields": ["name", "owner", "dueDays", "nextAction", "estimateHours"]
+    },
+    {
+      "id": "incoming-event",
+      "name": "Incoming Event",
+      "fields": ["title", "description", "owner", "urgency", "projectSlug", "estimateHours", "dueDays", "kind"]
     }
   ]
 }

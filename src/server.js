@@ -7,6 +7,8 @@ import { getPortfolioActivity, getProjectHistory } from "./git-history.js";
 import { buildDependencyInsights, buildPortfolioSummary, buildTimeline, computeHealth, queryIndex } from "./indexer.js";
 import { readOpsState, runDueOps } from "./auto-ops.js";
 import { buildActionQueue, writeActionQueueReport } from "./action-playbook.js";
+import { resolveSafePlaybookActions } from "./playbook-resolver.js";
+import { enqueueIncomingEvent, listIncomingEvents, processIncomingEvents, submitIntakeForm } from "./intake-automation.js";
 import {
   addTask,
   assertVersionToken,
@@ -222,49 +224,43 @@ async function createApp() {
   app.post("/api/intake/submit", async (req, res) => {
     try {
       const formId = String(req.body.formId || "");
-      if (formId === "quick-task") {
-        const slug = String(req.body.payload?.slug || "");
-        const task = String(req.body.payload?.task || "").trim();
-        if (!slug || !task) throw new Error("quick-task requires slug and task");
-        await addTask(slug, task, req.body.payload?.recurrence || "");
-        res.json({ ok: true, result: { type: "task", slug } });
+      const result = await submitIntakeForm({ formId, payload: req.body.payload || {} });
+      res.json({ ok: true, result });
+    } catch (error) {
+      res.status(400).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.get("/api/intake/events", async (req, res) => {
+    try {
+      const limit = Math.max(1, Math.min(Number(req.query.limit) || 50, 500));
+      const events = await listIncomingEvents({ limit });
+      res.json({ ok: true, events });
+    } catch (error) {
+      res.status(400).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post("/api/intake/events", async (req, res) => {
+    try {
+      const queued = await enqueueIncomingEvent(req.body || {});
+      if (Boolean(req.query.autoProcess)) {
+        const processed = await processIncomingEvents({ dryRun: false, maxEvents: 1 });
+        res.json({ ok: true, queued, processed });
         return;
       }
-      if (formId === "quick-project") {
-        const name = String(req.body.payload?.name || "").trim();
-        if (!name) throw new Error("quick-project requires name");
-        const owner = String(req.body.payload?.owner || "unassigned");
-        const dueDays = Math.max(1, Number(req.body.payload?.dueDays) || 30);
-        const slug = toSlug(name);
-        const today = new Date();
-        const due = new Date(today.getTime() + dueDays * 24 * 60 * 60 * 1000);
-        const templateDir = path.join(process.cwd(), "templates", "project");
-        const targetDir = path.join(process.cwd(), "projects", slug);
-        await fs.mkdir(targetDir, { recursive: true });
-        for (const file of ["README.md", "spec.md", "research.md", "milestones.md", "tasks.md"]) {
-          const source = path.join(templateDir, file);
-          const target = path.join(targetDir, file);
-          let content = await fs.readFile(source, "utf8");
-          content = content
-            .replaceAll("{{slug}}", slug)
-            .replaceAll("{{name}}", name)
-            .replaceAll("{{owner}}", owner)
-            .replaceAll("{{today}}", today.toISOString().slice(0, 10))
-            .replaceAll("{{dueDate}}", due.toISOString().slice(0, 10));
-          if (file === "README.md") {
-            if (req.body.payload?.nextAction) {
-              content = content.replace("nextAction: Define first milestone", `nextAction: ${String(req.body.payload.nextAction).trim()}`);
-            }
-            if (Number.isFinite(Number(req.body.payload?.estimateHours))) {
-              content = content.replace("estimateHours: 0", `estimateHours: ${Math.max(0, Number(req.body.payload.estimateHours))}`);
-            }
-          }
-          await fs.writeFile(target, content, "utf8");
-        }
-        res.json({ ok: true, result: { type: "project", slug } });
-        return;
-      }
-      throw new Error(`Unsupported formId: ${formId}`);
+      res.json({ ok: true, ...queued });
+    } catch (error) {
+      res.status(400).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post("/api/intake/process", async (req, res) => {
+    try {
+      const dryRun = Boolean(req.body?.dryRun);
+      const maxEvents = Math.max(0, Number(req.body?.maxEvents) || 25);
+      const result = await processIncomingEvents({ dryRun, maxEvents });
+      res.json({ ok: true, ...result });
     } catch (error) {
       res.status(400).json({ ok: false, error: error.message });
     }
@@ -353,6 +349,17 @@ async function createApp() {
       const summary = { dryRun, evaluated: (config.rules || []).length, outcomes };
       if (!dryRun) await appendAutomationRun(summary);
       res.json({ ok: true, ...summary });
+    } catch (error) {
+      res.status(400).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post("/api/playbook/resolve-safe", async (req, res) => {
+    try {
+      const dryRun = Boolean(req.body?.dryRun);
+      const maxActions = Math.max(0, Number(req.body?.maxActions) || 999);
+      const result = await resolveSafePlaybookActions({ dryRun, maxActions });
+      res.json({ ok: true, ...result });
     } catch (error) {
       res.status(400).json({ ok: false, error: error.message });
     }
