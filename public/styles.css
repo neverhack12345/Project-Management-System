@@ -2,6 +2,11 @@
   font-family: Inter, Segoe UI, sans-serif;
   color-scheme: dark;
 }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
 body {
   margin: 0;
   background: #0f1115;
@@ -43,11 +48,22 @@ input[type="checkbox"] {
   border-radius: 12px;
   padding: 12px;
   background: #141927;
+  min-width: 0;
+  overflow: hidden;
 }
 .row {
   display: flex;
   gap: 6px;
   margin-top: 8px;
+  flex-wrap: wrap;
+}
+.row > input,
+.row > select {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+.row > button {
+  flex: 0 0 auto;
 }
 .row .taskInput {
   flex: 1;
@@ -83,10 +99,12 @@ input[type="checkbox"] {
   box-sizing: border-box;
 }
 #intakePayload {
-  min-width: 320px;
+  width: 100%;
+  min-width: 0;
 }
 #migrationInput {
-  min-width: 320px;
+  width: 100%;
+  min-width: 0;
 }
 .drawer-head {
   display: flex;
