@@ -24,6 +24,8 @@ Markdown-first project and milestone tracker with:
 
 Schema reference: `docs/SCHEMA.md`
 
+Strategy reference: `docs/COMPETITIVE_GAP_ANALYSIS.md`
+
 ## MCP for AI agents
 
 - Start server: `npm run mcp:start`
