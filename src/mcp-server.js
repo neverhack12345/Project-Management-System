@@ -27,6 +27,7 @@ import {
 } from "./indexer.js";
 import { getPortfolioActivity, getProjectHistory } from "./git-history.js";
 import { readOpsState, runDueOps } from "./auto-ops.js";
+import { buildActionQueue, writeActionQueueReport } from "./action-playbook.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -66,6 +67,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "get_today_brief", description: "Get consolidated daily operational brief", inputSchema: { type: "object", properties: {} } },
     { name: "get_trends", description: "Get snapshot trends", inputSchema: { type: "object", properties: { days: { type: "number" } } } },
     { name: "get_ops_state", description: "Get auto-ops state file status", inputSchema: { type: "object", properties: {} } },
+    { name: "get_actionable_playbook", description: "Get prioritized actionable alert queue", inputSchema: { type: "object", properties: {} } },
+    {
+      name: "run_playbook_action",
+      description: "Execute one safe playbook action by actionId",
+      inputSchema: {
+        type: "object",
+        required: ["actionId"],
+        properties: {
+          actionId: { type: "string" },
+          versionToken: { type: "string" },
+          dryRun: { type: "boolean" }
+        }
+      }
+    },
     {
       name: "update_project_status",
       description: "Update project status (side effect, requires versionToken)",
@@ -201,6 +216,57 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       case "get_ops_state":
         return contentJson({ state: await readOpsState() });
+      case "get_actionable_playbook": {
+        const projects = await loadAllProjects();
+        let alerts = [];
+        try {
+          const raw = await fs.readFile(path.join(process.cwd(), "reports", "alerts-latest.json"), "utf8");
+          alerts = JSON.parse(raw);
+        } catch {
+          alerts = [];
+        }
+        const queue = buildActionQueue(projects, alerts, buildDependencyInsights(projects));
+        await writeActionQueueReport(queue);
+        return contentJson(queue);
+      }
+      case "run_playbook_action": {
+        const projects = await loadAllProjects();
+        let alerts = [];
+        try {
+          const raw = await fs.readFile(path.join(process.cwd(), "reports", "alerts-latest.json"), "utf8");
+          alerts = JSON.parse(raw);
+        } catch {
+          alerts = [];
+        }
+        const queue = buildActionQueue(projects, alerts, buildDependencyInsights(projects));
+        const action = (queue.actions || []).find((item) => item.id === args.actionId);
+        if (!action) throw new Error(`Playbook action not found: ${args.actionId}`);
+        if (!action.safeExecute) {
+          return contentJson({
+            ok: false,
+            actionId: args.actionId,
+            reason: "Action requires manual decision and cannot be auto-executed."
+          });
+        }
+        if (!action.projectSlug || action.executeHint !== "update_project_meta") {
+          throw new Error("Unsupported safe-execute action shape.");
+        }
+        if (args.dryRun) {
+          return contentJson({
+            ok: true,
+            dryRun: true,
+            actionId: args.actionId,
+            wouldExecute: {
+              tool: "update_project_meta",
+              slug: action.projectSlug,
+              patch: action.suggestedPatch
+            }
+          });
+        }
+        await assertVersionToken(action.projectSlug, args.versionToken);
+        const result = await updateProjectMeta(action.projectSlug, action.suggestedPatch || {});
+        return contentJson({ ok: true, actionId: args.actionId, result });
+      }
       case "update_project_status":
         await assertVersionToken(args.slug, args.versionToken);
         return contentJson(await updateProjectStatus(args.slug, args.status));

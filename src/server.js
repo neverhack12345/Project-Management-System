@@ -6,6 +6,7 @@ import { maybeAutoCommit } from "./git-ops.js";
 import { getPortfolioActivity, getProjectHistory } from "./git-history.js";
 import { buildDependencyInsights, buildPortfolioSummary, buildTimeline, computeHealth, queryIndex } from "./indexer.js";
 import { readOpsState, runDueOps } from "./auto-ops.js";
+import { buildActionQueue, writeActionQueueReport } from "./action-playbook.js";
 import {
   addTask,
   assertVersionToken,
@@ -97,6 +98,22 @@ async function createApp() {
 
   app.get("/api/ops-state", async (_req, res) => {
     res.json({ ok: true, state: await readOpsState() });
+  });
+
+  app.get("/api/playbook/actions", async (_req, res) => {
+    const projects = await loadAllProjects();
+    const dependencyInsights = buildDependencyInsights(projects);
+    let alerts = [];
+    try {
+      const alertsPath = path.join(reportsDir, "alerts-latest.json");
+      const raw = await fs.readFile(alertsPath, "utf8");
+      alerts = JSON.parse(raw);
+    } catch {
+      alerts = [];
+    }
+    const queue = buildActionQueue(projects, alerts, dependencyInsights);
+    await writeActionQueueReport(queue);
+    res.json({ ok: true, ...queue });
   });
 
   app.get("/api/today-brief", async (_req, res) => {

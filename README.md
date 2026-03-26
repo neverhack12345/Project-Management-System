@@ -61,6 +61,17 @@ Schema reference: `docs/SCHEMA.md`
   - MCP tool: `get_ops_state`
 - Run order when due: monthly -> weekly -> daily.
 
+## Actionable Alert Playbooks
+
+- API: `GET /api/playbook/actions`
+- Dashboard: **Action Queue** card with one-click execution for safe actions
+- MCP:
+  - `get_actionable_playbook`
+  - `run_playbook_action` (`dryRun` supported)
+- Report artifact: `reports/action-queue-latest.json`
+
+Playbook actions are generated from existing alert and dependency signals and prioritized for execution. Safe actions reuse existing write APIs and require `versionToken` protection to prevent stale writes.
+
 ## Ops cadence
 
 | Cadence | Core commands | Outcome |

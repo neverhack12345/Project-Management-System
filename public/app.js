@@ -18,6 +18,7 @@ const historyList = document.getElementById("historyList");
 const closeHistoryBtn = document.getElementById("closeHistoryBtn");
 const healthList = document.getElementById("healthList");
 const alertsList = document.getElementById("alertsList");
+const actionQueueList = document.getElementById("actionQueueList");
 const activityList = document.getElementById("activityList");
 const dependencyList = document.getElementById("dependencyList");
 const portfolioList = document.getElementById("portfolioList");
@@ -55,6 +56,10 @@ async function fetchAlerts() {
 }
 async function fetchActivity() {
   const res = await fetch("/api/activity?limit=10");
+  return res.json();
+}
+async function fetchActionQueue() {
+  const res = await fetch("/api/playbook/actions");
   return res.json();
 }
 async function fetchDependencies() {
@@ -277,10 +282,37 @@ function renderAlerts(data) {
   alertsList.innerHTML = "";
   for (const item of data.alerts || []) {
     const li = document.createElement("li");
-    li.textContent = `${item.type}: ${item.slug}`;
+    li.textContent = `${item.type}: ${item.slug || item.milestone || "n/a"}`;
     alertsList.appendChild(li);
   }
   if (!alertsList.children.length) alertsList.innerHTML = "<li>No alerts.</li>";
+}
+
+function renderActionQueue(data) {
+  actionQueueList.innerHTML = "";
+  for (const action of data.actions || []) {
+    const li = document.createElement("li");
+    const details = `${action.priority.toUpperCase()} - ${action.title}`;
+    const reason = action.reason ? ` (${action.reason})` : "";
+    li.textContent = `${details}${reason}`;
+    if (action.safeExecute && action.projectSlug && action.executeHint === "update_project_meta") {
+      const runBtn = document.createElement("button");
+      runBtn.textContent = "Run";
+      runBtn.className = "smallBtn";
+      runBtn.addEventListener("click", async () => {
+        try {
+          await saveProjectMeta(action.projectSlug, action.suggestedPatch || {});
+          await refresh();
+        } catch (error) {
+          flash.textContent = error.message;
+        }
+      });
+      li.appendChild(document.createTextNode(" "));
+      li.appendChild(runBtn);
+    }
+    actionQueueList.appendChild(li);
+  }
+  if (!actionQueueList.children.length) actionQueueList.innerHTML = "<li>No actions.</li>";
 }
 
 function renderActivity(data) {
@@ -354,12 +386,13 @@ function renderOpsState(data) {
 }
 
 async function refresh() {
-  const [projectsRes, timelineRes, healthRes, alertsRes, activityRes, dependenciesRes, portfolioRes, todayBriefRes, trendsRes, opsStateRes] =
+  const [projectsRes, timelineRes, healthRes, alertsRes, actionQueueRes, activityRes, dependenciesRes, portfolioRes, todayBriefRes, trendsRes, opsStateRes] =
     await Promise.all([
       fetchProjects(),
       fetchTimeline(),
       fetchHealth(),
       fetchAlerts(),
+      fetchActionQueue(),
       fetchActivity(),
       fetchDependencies(),
       fetchPortfolio(),
@@ -372,6 +405,7 @@ async function refresh() {
   renderGantt(timelineRes.events || []);
   renderHealth(healthRes);
   renderAlerts(alertsRes);
+  renderActionQueue(actionQueueRes);
   renderActivity(activityRes);
   renderDependencies(dependenciesRes);
   renderPortfolio(portfolioRes);
