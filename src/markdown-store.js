@@ -54,14 +54,16 @@ function summarizeTasks(markdown) {
   const lines = markdown.split("\n");
   let total = 0;
   let done = 0;
+  let recurring = 0;
   for (const line of lines) {
     if (line.startsWith("- [ ] ")) total += 1;
     if (line.startsWith("- [x] ")) {
       total += 1;
       done += 1;
     }
+    if (line.includes("[recur:")) recurring += 1;
   }
-  return { total, done };
+  return { total, done, recurring };
 }
 
 function normalizeMilestone(raw) {
@@ -108,6 +110,7 @@ export async function loadProject(slug) {
     startDate: toDateString(readme.data.startDate),
     dueDate: toDateString(readme.data.dueDate),
     lastUpdated: toDateString(readme.data.lastUpdated),
+    estimateHours: Number(readme.data.estimateHours || 0),
     modifiedAt: readmeStats.mtime.toISOString(),
     versionToken: String(readmeStats.mtimeMs),
     taskSummary,
@@ -202,16 +205,23 @@ export async function updateProjectMeta(slug, patch = {}) {
   if (typeof patch.priority === "string" && patch.priority.trim()) {
     parsed.data.priority = patch.priority.trim();
   }
+  if (typeof patch.estimateHours === "number" && Number.isFinite(patch.estimateHours) && patch.estimateHours >= 0) {
+    parsed.data.estimateHours = patch.estimateHours;
+  }
   parsed.data.lastUpdated = new Date().toISOString().slice(0, 10);
 
   await atomicWrite(readmePath, matter.stringify(parsed.content, parsed.data));
   return { updatedFile: readmePath };
 }
 
-export async function addTask(slug, task) {
+export async function addTask(slug, task, recurrence = "") {
   const taskPath = path.join(PROJECTS_DIR, slug, "tasks.md");
   const raw = await fs.readFile(taskPath, "utf8");
-  const next = `${raw.trimEnd()}\n- [ ] ${task}\n`;
+  const recurValue = String(recurrence || "").trim().toLowerCase();
+  const recurToken = ["daily", "weekly", "monthly"].includes(recurValue)
+    ? ` [recur:${recurValue}]`
+    : "";
+  const next = `${raw.trimEnd()}\n- [ ] ${task}${recurToken}\n`;
   await atomicWrite(taskPath, next);
   return { updatedFile: taskPath };
 }

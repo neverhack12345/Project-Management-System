@@ -77,6 +77,31 @@ export function buildActionQueue(projects, alerts, dependencyInsights = { invali
       continue;
     }
 
+    if ((alert.type === "preStaleEarly" || alert.type === "preStaleLate") && alert.slug) {
+      const project = projectBySlug.get(alert.slug);
+      if (!project) continue;
+      const urgency = alert.type === "preStaleLate" ? "high" : "medium";
+      const nextAction =
+        project.nextAction && project.nextAction.trim()
+          ? project.nextAction.trim()
+          : "Take a progress step now to prevent stale status.";
+      queue.push(
+        actionBase({
+          id: stableActionId([alert.type, project.slug]),
+          title: `Prevent stale drift for ${project.slug}`,
+          reason: `${project.slug} is ${alert.days} days since update (stale at ${alert.threshold} days).`,
+          priority: urgency,
+          projectSlug: project.slug,
+          alertType: alert.type,
+          safeExecute: true,
+          requiresVersionToken: true,
+          suggestedPatch: { nextAction },
+          executeHint: "update_project_meta"
+        })
+      );
+      continue;
+    }
+
     if (alert.type === "blockedTooLong" && alert.slug) {
       const project = projectBySlug.get(alert.slug);
       if (!project) continue;

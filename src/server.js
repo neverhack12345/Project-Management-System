@@ -21,6 +21,77 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const publicDir = path.join(__dirname, "..", "public");
 const reportsDir = path.join(__dirname, "..", "reports");
+const decisionLogPath = path.join(reportsDir, "decision-log.ndjson");
+const timeEntriesPath = path.join(reportsDir, "time-entries.ndjson");
+const intakeFormsPath = path.join(process.cwd(), "forms", "intake.json");
+const automationRulesPath = path.join(process.cwd(), "config", "automation-rules.json");
+const automationRunsPath = path.join(reportsDir, "automation-runs.ndjson");
+
+async function appendDecisionLog(entry) {
+  await fs.mkdir(reportsDir, { recursive: true });
+  await fs.appendFile(decisionLogPath, `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`, "utf8");
+}
+
+function toSlug(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+async function appendTimeEntry(entry) {
+  await fs.mkdir(reportsDir, { recursive: true });
+  await fs.appendFile(timeEntriesPath, `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`, "utf8");
+}
+
+async function readNdjson(filePath) {
+  try {
+    const raw = await fs.readFile(filePath, "utf8");
+    return raw
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+  } catch {
+    return [];
+  }
+}
+
+async function readJson(filePath, fallback) {
+  try {
+    const raw = await fs.readFile(filePath, "utf8");
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
+async function writeJson(filePath, value) {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, JSON.stringify(value, null, 2), "utf8");
+}
+
+async function appendAutomationRun(entry) {
+  await fs.mkdir(reportsDir, { recursive: true });
+  await fs.appendFile(automationRunsPath, `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`, "utf8");
+}
+
+function evaluateCondition(condition, context) {
+  if (!condition || typeof condition !== "object") return true;
+  if (condition.type === "alertCountAtLeast") {
+    return (context.alerts?.length || 0) >= Number(condition.value || 0);
+  }
+  if (condition.type === "hasAlertType") {
+    return (context.alerts || []).some((item) => item.type === condition.value);
+  }
+  if (condition.type === "projectStatusCountAtLeast") {
+    const min = Number(condition.min || 1);
+    const count = (context.projects || []).filter((p) => p.status === condition.status).length;
+    return count >= min;
+  }
+  return false;
+}
 
 async function createApp() {
   await ensureProjectsDir();
@@ -96,6 +167,109 @@ async function createApp() {
     res.json({ ok: true, summary: buildPortfolioSummary(projects) });
   });
 
+  app.get("/api/capacity", async (req, res) => {
+    const days = Math.max(1, Math.min(Number(req.query.days) || 7, 60));
+    const hoursPerDay = Math.max(1, Math.min(Number(req.query.hoursPerDay) || 6, 24));
+    const projects = await loadAllProjects();
+    const active = projects.filter((p) => p.status !== "done");
+    const totalEstimate = active.reduce((sum, p) => sum + Number(p.estimateHours || 0), 0);
+    const capacity = days * hoursPerDay;
+    res.json({
+      ok: true,
+      days,
+      hoursPerDay,
+      capacityHours: capacity,
+      plannedHours: totalEstimate,
+      utilization: capacity ? Math.round((totalEstimate / capacity) * 100) : 0,
+      activeProjects: active.length
+    });
+  });
+
+  app.get("/api/time-entries", async (req, res) => {
+    const days = Math.max(1, Math.min(Number(req.query.days) || 14, 180));
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+    const rows = (await readNdjson(timeEntriesPath)).filter((row) => new Date(row.at || 0).getTime() >= cutoff);
+    const totalMinutes = rows.reduce((sum, row) => sum + Number(row.minutes || 0), 0);
+    res.json({ ok: true, days, totalMinutes, entries: rows.slice(-200).reverse() });
+  });
+
+  app.post("/api/time-entries", async (req, res) => {
+    try {
+      if (!req.body.slug || !Number.isFinite(Number(req.body.minutes))) {
+        throw new Error("slug and minutes are required");
+      }
+      await appendTimeEntry({
+        slug: req.body.slug,
+        minutes: Math.max(1, Number(req.body.minutes)),
+        note: String(req.body.note || "").trim(),
+        date: String(req.body.date || new Date().toISOString().slice(0, 10))
+      });
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(400).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.get("/api/intake/forms", async (_req, res) => {
+    try {
+      const raw = await fs.readFile(intakeFormsPath, "utf8");
+      res.json({ ok: true, ...JSON.parse(raw) });
+    } catch {
+      res.json({ ok: true, forms: [] });
+    }
+  });
+
+  app.post("/api/intake/submit", async (req, res) => {
+    try {
+      const formId = String(req.body.formId || "");
+      if (formId === "quick-task") {
+        const slug = String(req.body.payload?.slug || "");
+        const task = String(req.body.payload?.task || "").trim();
+        if (!slug || !task) throw new Error("quick-task requires slug and task");
+        await addTask(slug, task, req.body.payload?.recurrence || "");
+        res.json({ ok: true, result: { type: "task", slug } });
+        return;
+      }
+      if (formId === "quick-project") {
+        const name = String(req.body.payload?.name || "").trim();
+        if (!name) throw new Error("quick-project requires name");
+        const owner = String(req.body.payload?.owner || "unassigned");
+        const dueDays = Math.max(1, Number(req.body.payload?.dueDays) || 30);
+        const slug = toSlug(name);
+        const today = new Date();
+        const due = new Date(today.getTime() + dueDays * 24 * 60 * 60 * 1000);
+        const templateDir = path.join(process.cwd(), "templates", "project");
+        const targetDir = path.join(process.cwd(), "projects", slug);
+        await fs.mkdir(targetDir, { recursive: true });
+        for (const file of ["README.md", "spec.md", "research.md", "milestones.md", "tasks.md"]) {
+          const source = path.join(templateDir, file);
+          const target = path.join(targetDir, file);
+          let content = await fs.readFile(source, "utf8");
+          content = content
+            .replaceAll("{{slug}}", slug)
+            .replaceAll("{{name}}", name)
+            .replaceAll("{{owner}}", owner)
+            .replaceAll("{{today}}", today.toISOString().slice(0, 10))
+            .replaceAll("{{dueDate}}", due.toISOString().slice(0, 10));
+          if (file === "README.md") {
+            if (req.body.payload?.nextAction) {
+              content = content.replace("nextAction: Define first milestone", `nextAction: ${String(req.body.payload.nextAction).trim()}`);
+            }
+            if (Number.isFinite(Number(req.body.payload?.estimateHours))) {
+              content = content.replace("estimateHours: 0", `estimateHours: ${Math.max(0, Number(req.body.payload.estimateHours))}`);
+            }
+          }
+          await fs.writeFile(target, content, "utf8");
+        }
+        res.json({ ok: true, result: { type: "project", slug } });
+        return;
+      }
+      throw new Error(`Unsupported formId: ${formId}`);
+    } catch (error) {
+      res.status(400).json({ ok: false, error: error.message });
+    }
+  });
+
   app.get("/api/ops-state", async (_req, res) => {
     res.json({ ok: true, state: await readOpsState() });
   });
@@ -114,6 +288,141 @@ async function createApp() {
     const queue = buildActionQueue(projects, alerts, dependencyInsights);
     await writeActionQueueReport(queue);
     res.json({ ok: true, ...queue });
+  });
+
+  app.get("/api/automation/rules", async (_req, res) => {
+    const config = await readJson(automationRulesPath, { rules: [] });
+    res.json({ ok: true, ...config });
+  });
+
+  app.put("/api/automation/rules", async (req, res) => {
+    try {
+      const rules = Array.isArray(req.body?.rules) ? req.body.rules : null;
+      if (!rules) throw new Error("rules array is required");
+      await writeJson(automationRulesPath, { rules });
+      res.json({ ok: true, rulesCount: rules.length });
+    } catch (error) {
+      res.status(400).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.get("/api/automation/runs", async (req, res) => {
+    const limit = Math.max(1, Math.min(Number(req.query.limit) || 20, 200));
+    const rows = await readNdjson(automationRunsPath);
+    res.json({ ok: true, runs: rows.slice(-limit).reverse() });
+  });
+
+  app.post("/api/automation/run", async (req, res) => {
+    try {
+      const dryRun = Boolean(req.body?.dryRun);
+      const config = await readJson(automationRulesPath, { rules: [] });
+      const projects = await loadAllProjects();
+      const alerts = await readJson(path.join(reportsDir, "alerts-latest.json"), []);
+      const context = { projects, alerts };
+      const outcomes = [];
+      for (const rule of config.rules || []) {
+        if (!rule?.enabled) continue;
+        const passed = (rule.conditions || []).every((cond) => evaluateCondition(cond, context));
+        const outcome = { ruleId: rule.id, name: rule.name, passed, actions: [] };
+        if (passed) {
+          for (const action of rule.actions || []) {
+            if (action.type === "regeneratePlaybook") {
+              const queue = buildActionQueue(projects, alerts, buildDependencyInsights(projects));
+              if (!dryRun) await writeActionQueueReport(queue);
+              outcome.actions.push({ type: action.type, ok: true, dryRun });
+              continue;
+            }
+            if (action.type === "appendAutomationNote") {
+              if (!dryRun) {
+                await appendDecisionLog({
+                  slug: "system",
+                  fromStatus: "automation",
+                  toStatus: "automation",
+                  note: String(action.value || "automation note"),
+                  source: "automation.rule"
+                });
+              }
+              outcome.actions.push({ type: action.type, ok: true, dryRun });
+              continue;
+            }
+            outcome.actions.push({ type: action.type, ok: false, error: "Unsupported action type" });
+          }
+        }
+        outcomes.push(outcome);
+      }
+      const summary = { dryRun, evaluated: (config.rules || []).length, outcomes };
+      if (!dryRun) await appendAutomationRun(summary);
+      res.json({ ok: true, ...summary });
+    } catch (error) {
+      res.status(400).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post("/api/migration/preview", async (req, res) => {
+    try {
+      const items = Array.isArray(req.body?.items) ? req.body.items : [];
+      const normalized = [];
+      const issues = [];
+      const mapStatus = {
+        todo: "planning",
+        inprogress: "active",
+        blocked: "blocked",
+        done: "done"
+      };
+      for (const [index, item] of items.entries()) {
+        const title = String(item.title || item.name || "").trim();
+        if (!title) {
+          issues.push({ index, field: "title", error: "missing title/name" });
+          continue;
+        }
+        const rawState = String(item.state || item.status || "planning").toLowerCase();
+        const mappedStatus = mapStatus[rawState] || (["idea", "planning", "active", "blocked", "done"].includes(rawState) ? rawState : "planning");
+        const dueDate = String(item.due || item.dueDate || "");
+        const estimateHours = Math.max(0, Number(item.estimateHours || 0));
+        normalized.push({
+          slug: toSlug(title),
+          name: title,
+          owner: String(item.owner || "unassigned"),
+          status: mappedStatus,
+          dueDate,
+          estimateHours
+        });
+        if (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
+          issues.push({ index, field: "dueDate", error: "must be ISO YYYY-MM-DD" });
+        }
+      }
+      res.json({ ok: true, total: items.length, normalized, issues });
+    } catch (error) {
+      res.status(400).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post("/api/workspace/export-snapshot", async (_req, res) => {
+    try {
+      const projects = await loadAllProjects();
+      const alerts = await readJson(path.join(reportsDir, "alerts-latest.json"), []);
+      const actionQueue = await readJson(path.join(reportsDir, "action-queue-latest.json"), { actions: [] });
+      const snapshotDir = path.join(reportsDir, "workspace-snapshot");
+      await fs.mkdir(snapshotDir, { recursive: true });
+      const manifest = {
+        generatedAt: new Date().toISOString(),
+        projectCount: projects.length,
+        alertsCount: alerts.length,
+        actionQueueCount: (actionQueue.actions || []).length,
+        projects: projects.map((p) => ({
+          slug: p.slug,
+          status: p.status,
+          priority: p.priority,
+          dueDate: p.dueDate,
+          estimateHours: p.estimateHours || 0
+        }))
+      };
+      const target = path.join(snapshotDir, "workspace-snapshot-latest.json");
+      await fs.writeFile(target, JSON.stringify(manifest, null, 2), "utf8");
+      res.json({ ok: true, path: target, summary: manifest });
+    } catch (error) {
+      res.status(400).json({ ok: false, error: error.message });
+    }
   });
 
   app.get("/api/today-brief", async (_req, res) => {
@@ -172,6 +481,15 @@ async function createApp() {
     try {
       await assertVersionToken(req.params.slug, req.body.versionToken);
       const result = await updateProjectStatus(req.params.slug, req.body.status);
+      if (typeof req.body.decisionNote === "string" && req.body.decisionNote.trim()) {
+        await appendDecisionLog({
+          slug: req.params.slug,
+          fromStatus: req.body.previousStatus || "unknown",
+          toStatus: req.body.status,
+          note: req.body.decisionNote.trim(),
+          source: "web"
+        });
+      }
       const commit = await maybeAutoCommit({
         slug: req.params.slug,
         message: `project(${req.params.slug}): update status to ${req.body.status}`,
@@ -193,10 +511,10 @@ async function createApp() {
         throw new Error("task is required");
       }
       await assertVersionToken(req.params.slug, req.body.versionToken);
-      const result = await addTask(req.params.slug, req.body.task.trim());
+      const result = await addTask(req.params.slug, req.body.task.trim(), req.body.recurrence || "");
       const commit = await maybeAutoCommit({
         slug: req.params.slug,
-        message: `project(${req.params.slug}): add task`,
+        message: `project(${req.params.slug}): add task${req.body.recurrence ? ` (${req.body.recurrence})` : ""}`,
         files: [result.updatedFile]
       });
       res.json({ ok: true, commit });
@@ -205,6 +523,48 @@ async function createApp() {
         res.status(409).json({ ok: false, error: error.message, currentToken: error.currentToken });
         return;
       }
+      res.status(400).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.patch("/api/projects/bulk", async (req, res) => {
+    try {
+      const updates = Array.isArray(req.body?.updates) ? req.body.updates : [];
+      if (!updates.length) throw new Error("updates array is required");
+      const results = [];
+      for (const item of updates) {
+        if (!item?.slug || !item?.versionToken) {
+          results.push({ slug: item?.slug || "unknown", ok: false, error: "slug and versionToken are required" });
+          continue;
+        }
+        try {
+          await assertVersionToken(item.slug, item.versionToken);
+          if (item.status) {
+            await updateProjectStatus(item.slug, item.status);
+            if (typeof item.decisionNote === "string" && item.decisionNote.trim()) {
+              await appendDecisionLog({
+                slug: item.slug,
+                fromStatus: item.previousStatus || "unknown",
+                toStatus: item.status,
+                note: item.decisionNote.trim(),
+                source: "web.bulk"
+              });
+            }
+          }
+          const patch = {};
+          if (typeof item.priority === "string") patch.priority = item.priority;
+          if (typeof item.nextAction === "string") patch.nextAction = item.nextAction;
+          if (typeof item.blockedReason === "string") patch.blockedReason = item.blockedReason;
+          if (Object.keys(patch).length) {
+            await updateProjectMeta(item.slug, patch);
+          }
+          results.push({ slug: item.slug, ok: true });
+        } catch (error) {
+          results.push({ slug: item.slug, ok: false, error: error.message, code: error.code || "UPDATE_FAILED" });
+        }
+      }
+      res.json({ ok: true, results });
+    } catch (error) {
       res.status(400).json({ ok: false, error: error.message });
     }
   });

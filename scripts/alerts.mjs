@@ -9,6 +9,8 @@ function arg(name, fallback) {
 }
 
 const staleDays = Number(arg("staleDays", "14"));
+const preStaleEarlyDays = Number(arg("preStaleEarlyDays", "7"));
+const preStaleLateDays = Number(arg("preStaleLateDays", "12"));
 const dueInDays = Number(arg("dueInDays", "7"));
 const blockedDays = Number(arg("blockedDays", "3"));
 const now = new Date();
@@ -22,6 +24,12 @@ for (const project of projects) {
   const last = new Date(project.lastUpdated || project.modifiedAt);
   const staleFor = Math.floor((now.getTime() - last.getTime()) / (24 * 60 * 60 * 1000));
   if (staleFor > staleDays) alerts.push({ type: "stale", slug: project.slug, days: staleFor });
+  if (staleFor >= preStaleEarlyDays && staleFor < preStaleLateDays) {
+    alerts.push({ type: "preStaleEarly", slug: project.slug, days: staleFor, threshold: staleDays });
+  }
+  if (staleFor >= preStaleLateDays && staleFor < staleDays) {
+    alerts.push({ type: "preStaleLate", slug: project.slug, days: staleFor, threshold: staleDays });
+  }
 
   if (project.dueDate) {
     const due = new Date(project.dueDate);

@@ -8,6 +8,15 @@ const savedViews = document.getElementById("savedViews");
 const deleteViewBtn = document.getElementById("deleteViewBtn");
 const flash = document.getElementById("flash");
 const refreshBtn = document.getElementById("refreshBtn");
+const commandPaletteBtn = document.getElementById("commandPaletteBtn");
+const selectAllProjects = document.getElementById("selectAllProjects");
+const bulkStatus = document.getElementById("bulkStatus");
+const bulkPriority = document.getElementById("bulkPriority");
+const applyBulkBtn = document.getElementById("applyBulkBtn");
+const quietHoursInput = document.getElementById("quietHours");
+const digestOverdue = document.getElementById("digestOverdue");
+const digestStale = document.getElementById("digestStale");
+const digestBlocked = document.getElementById("digestBlocked");
 const projectCardTpl = document.getElementById("projectCardTpl");
 const calendarEl = document.getElementById("calendar");
 const ganttEl = document.getElementById("gantt");
@@ -25,8 +34,31 @@ const portfolioList = document.getElementById("portfolioList");
 const todayBriefList = document.getElementById("todayBriefList");
 const trendsList = document.getElementById("trendsList");
 const opsStateList = document.getElementById("opsStateList");
+const capacityList = document.getElementById("capacityList");
+const timeEntriesList = document.getElementById("timeEntriesList");
+const timeSlug = document.getElementById("timeSlug");
+const timeMinutes = document.getElementById("timeMinutes");
+const timeNote = document.getElementById("timeNote");
+const addTimeEntryBtn = document.getElementById("addTimeEntryBtn");
+const intakeFormSelect = document.getElementById("intakeFormSelect");
+const intakePayload = document.getElementById("intakePayload");
+const submitIntakeBtn = document.getElementById("submitIntakeBtn");
+const intakeList = document.getElementById("intakeList");
+const runAutomationDryBtn = document.getElementById("runAutomationDryBtn");
+const runAutomationBtn = document.getElementById("runAutomationBtn");
+const exportSnapshotBtn = document.getElementById("exportSnapshotBtn");
+const automationList = document.getElementById("automationList");
+const migrationInput = document.getElementById("migrationInput");
+const previewMigrationBtn = document.getElementById("previewMigrationBtn");
+const migrationList = document.getElementById("migrationList");
+const commandPalette = document.getElementById("commandPalette");
+const paletteInput = document.getElementById("paletteInput");
+const paletteList = document.getElementById("paletteList");
+const closePaletteBtn = document.getElementById("closePaletteBtn");
 
 const SAVED_VIEWS_KEY = "project_dashboard_saved_views";
+const DIGEST_PREFS_KEY = "project_dashboard_digest_prefs";
+const selectedProjects = new Set();
 
 const qs = () => {
   const p = new URLSearchParams();
@@ -82,25 +114,97 @@ async function fetchOpsState() {
   const res = await fetch("/api/ops-state");
   return res.json();
 }
+async function fetchCapacity() {
+  const res = await fetch("/api/capacity?days=7");
+  return res.json();
+}
+async function fetchTimeEntries() {
+  const res = await fetch("/api/time-entries?days=14");
+  return res.json();
+}
+async function fetchIntakeForms() {
+  const res = await fetch("/api/intake/forms");
+  return res.json();
+}
+async function addTimeEntry(payload) {
+  const res = await fetch("/api/time-entries", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok || data.ok === false) throw new Error(data.error || "Failed to log time");
+}
+async function submitIntake(formId, payload) {
+  const res = await fetch("/api/intake/submit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ formId, payload })
+  });
+  const data = await res.json();
+  if (!res.ok || data.ok === false) throw new Error(data.error || "Failed intake submit");
+  return data;
+}
+async function runAutomation(dryRun) {
+  const res = await fetch("/api/automation/run", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ dryRun })
+  });
+  const data = await res.json();
+  if (!res.ok || data.ok === false) throw new Error(data.error || "Automation run failed");
+  return data;
+}
+async function fetchAutomationRuns() {
+  const res = await fetch("/api/automation/runs?limit=10");
+  return res.json();
+}
+async function exportSnapshot() {
+  const res = await fetch("/api/workspace/export-snapshot", { method: "POST" });
+  const data = await res.json();
+  if (!res.ok || data.ok === false) throw new Error(data.error || "Snapshot export failed");
+  return data;
+}
+async function previewMigration(items) {
+  const res = await fetch("/api/migration/preview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items })
+  });
+  const data = await res.json();
+  if (!res.ok || data.ok === false) throw new Error(data.error || "Migration preview failed");
+  return data;
+}
 
-async function saveStatus(slug, status) {
+async function saveStatus(slug, status, decisionNote = "", previousStatus = "") {
   const project = currentProjects.find((item) => item.slug === slug);
   const res = await fetch(`/api/projects/${slug}/status`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status, versionToken: project?.versionToken || "" })
+    body: JSON.stringify({ status, decisionNote, previousStatus, versionToken: project?.versionToken || "" })
   });
   await handleWriteResponse(res);
 }
 
-async function addTask(slug, task) {
+async function addTask(slug, task, recurrence = "") {
   const project = currentProjects.find((item) => item.slug === slug);
   const res = await fetch(`/api/projects/${slug}/tasks`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ task, versionToken: project?.versionToken || "" })
+    body: JSON.stringify({ task, recurrence, versionToken: project?.versionToken || "" })
   });
   await handleWriteResponse(res);
+}
+
+async function applyBulkUpdates(updates) {
+  const res = await fetch("/api/projects/bulk", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ updates })
+  });
+  const data = await res.json();
+  if (!res.ok || data.ok === false) throw new Error(data.error || "Bulk update failed");
+  return data.results || [];
 }
 
 async function fetchHistory(slug) {
@@ -138,6 +242,34 @@ async function handleWriteResponse(res) {
 
 let currentProjects = [];
 
+function readDigestPrefs() {
+  try {
+    return JSON.parse(localStorage.getItem(DIGEST_PREFS_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function writeDigestPrefs(value) {
+  localStorage.setItem(DIGEST_PREFS_KEY, JSON.stringify(value));
+}
+
+function getDigestPrefs() {
+  return {
+    quietHours: quietHoursInput.value.trim(),
+    overdue: digestOverdue.checked,
+    stale: digestStale.checked,
+    blocked: digestBlocked.checked
+  };
+}
+
+function applyDigestPrefs(prefs) {
+  quietHoursInput.value = prefs.quietHours || "";
+  digestOverdue.checked = prefs.overdue !== false;
+  digestStale.checked = prefs.stale !== false;
+  digestBlocked.checked = prefs.blocked !== false;
+}
+
 function renderProjects(projects) {
   currentProjects = projects;
   projectList.innerHTML = "";
@@ -153,21 +285,30 @@ function renderProjects(projects) {
     if (project.status === "blocked") {
       node.querySelector(".meta").classList.add("meta-blocked");
     }
-    node.querySelector(".action").textContent = `Next: ${project.nextAction || "n/a"}`;
+    node.querySelector(".action").textContent = `Next: ${project.nextAction || "n/a"} | Recurring tasks: ${project.taskSummary?.recurring || 0}`;
     const statusSelect = node.querySelector(".statusSelect");
     statusSelect.value = project.status;
+    const decisionNoteInput = node.querySelector(".decisionNoteInput");
     node.querySelector(".saveStatus").addEventListener("click", async () => {
+      const note = decisionNoteInput.value.trim();
+      if ((statusSelect.value === "blocked" || statusSelect.value === "done") && !note) {
+        flash.textContent = "Decision note is required for blocked/done transitions.";
+        return;
+      }
       try {
-        await saveStatus(project.slug, statusSelect.value);
+        await saveStatus(project.slug, statusSelect.value, note, project.status);
+        decisionNoteInput.value = "";
         await refresh();
       } catch {}
     });
     const taskInput = node.querySelector(".taskInput");
+    const taskRecur = node.querySelector(".taskRecur");
     node.querySelector(".addTask").addEventListener("click", async () => {
       if (!taskInput.value.trim()) return;
       try {
-        await addTask(project.slug, taskInput.value.trim());
+        await addTask(project.slug, taskInput.value.trim(), taskRecur.value);
         taskInput.value = "";
+        taskRecur.value = "";
         await refresh();
       } catch {}
     });
@@ -178,6 +319,13 @@ function renderProjects(projects) {
         await saveProjectMeta(project.slug, { blockedReason: blockedReasonInput.value });
         await refresh();
       } catch {}
+    });
+
+    const selectBox = node.querySelector(".selectProject");
+    selectBox.checked = selectedProjects.has(project.slug);
+    selectBox.addEventListener("change", () => {
+      if (selectBox.checked) selectedProjects.add(project.slug);
+      else selectedProjects.delete(project.slug);
     });
 
     node.querySelector(".loadHistory").addEventListener("click", async () => {
@@ -280,9 +428,32 @@ function renderHealth(data) {
 
 function renderAlerts(data) {
   alertsList.innerHTML = "";
+  const prefs = getDigestPrefs();
+  let suppressed = 0;
   for (const item of data.alerts || []) {
+    if (item.type === "overdue" && !prefs.overdue) {
+      suppressed += 1;
+      continue;
+    }
+    if (item.type === "stale" && !prefs.stale) {
+      suppressed += 1;
+      continue;
+    }
+    if ((item.type === "preStaleEarly" || item.type === "preStaleLate") && !prefs.stale) {
+      suppressed += 1;
+      continue;
+    }
+    if (item.type === "blockedTooLong" && !prefs.blocked) {
+      suppressed += 1;
+      continue;
+    }
     const li = document.createElement("li");
     li.textContent = `${item.type}: ${item.slug || item.milestone || "n/a"}`;
+    alertsList.appendChild(li);
+  }
+  if (suppressed > 0) {
+    const li = document.createElement("li");
+    li.textContent = `suppressed by digest controls: ${suppressed}`;
     alertsList.appendChild(li);
   }
   if (!alertsList.children.length) alertsList.innerHTML = "<li>No alerts.</li>";
@@ -338,6 +509,17 @@ function renderDependencies(data) {
   const li3 = document.createElement("li");
   li3.textContent = `Invalid refs: ${invalid.length}`;
   dependencyList.appendChild(li3);
+  for (const key of keys.slice(0, 5)) {
+    const deps = (data.blockedBy?.[key] || []).slice(0, 3);
+    const li = document.createElement("li");
+    li.textContent = `${key} blocked by ${deps.join(", ") || "n/a"}`;
+    dependencyList.appendChild(li);
+  }
+  for (const entry of invalid.slice(0, 3)) {
+    const li = document.createElement("li");
+    li.textContent = `Repair ${entry.from}: missing ${entry.missing}`;
+    dependencyList.appendChild(li);
+  }
 }
 
 function renderPortfolio(data) {
@@ -385,8 +567,49 @@ function renderOpsState(data) {
   `;
 }
 
+function renderCapacity(data) {
+  capacityList.innerHTML = `
+    <li>Planned: ${data.plannedHours || 0}h</li>
+    <li>Capacity: ${data.capacityHours || 0}h</li>
+    <li>Utilization: ${data.utilization || 0}%</li>
+    <li>Active projects: ${data.activeProjects || 0}</li>
+  `;
+}
+
+function renderTimeEntries(data) {
+  timeEntriesList.innerHTML = "";
+  const summary = document.createElement("li");
+  summary.textContent = `Last ${data.days || 14}d total: ${Math.round((data.totalMinutes || 0) / 60)}h`;
+  timeEntriesList.appendChild(summary);
+  for (const entry of (data.entries || []).slice(0, 6)) {
+    const li = document.createElement("li");
+    li.textContent = `${entry.date} ${entry.slug}: ${entry.minutes}m ${entry.note ? `- ${entry.note}` : ""}`;
+    timeEntriesList.appendChild(li);
+  }
+}
+
+function renderIntakeForms(data) {
+  intakeFormSelect.innerHTML = "";
+  for (const form of data.forms || []) {
+    const opt = document.createElement("option");
+    opt.value = form.id;
+    opt.textContent = form.name;
+    intakeFormSelect.appendChild(opt);
+  }
+}
+
+function renderAutomationRuns(data) {
+  automationList.innerHTML = "";
+  for (const run of data.runs || []) {
+    const li = document.createElement("li");
+    li.textContent = `${run.at}: rules=${run.evaluated}, dryRun=${run.dryRun ? "yes" : "no"}`;
+    automationList.appendChild(li);
+  }
+  if (!automationList.children.length) automationList.innerHTML = "<li>No automation runs yet.</li>";
+}
+
 async function refresh() {
-  const [projectsRes, timelineRes, healthRes, alertsRes, actionQueueRes, activityRes, dependenciesRes, portfolioRes, todayBriefRes, trendsRes, opsStateRes] =
+  const [projectsRes, timelineRes, healthRes, alertsRes, actionQueueRes, activityRes, dependenciesRes, portfolioRes, todayBriefRes, trendsRes, opsStateRes, capacityRes, timeEntriesRes, intakeFormsRes, automationRunsRes] =
     await Promise.all([
       fetchProjects(),
       fetchTimeline(),
@@ -398,7 +621,11 @@ async function refresh() {
       fetchPortfolio(),
       fetchTodayBrief(),
       fetchTrends(),
-      fetchOpsState()
+      fetchOpsState(),
+      fetchCapacity(),
+      fetchTimeEntries(),
+      fetchIntakeForms(),
+      fetchAutomationRuns()
     ]);
   renderProjects(projectsRes.projects || []);
   renderCalendar(timelineRes.events || []);
@@ -412,6 +639,10 @@ async function refresh() {
   renderTodayBrief(todayBriefRes);
   renderTrends(trendsRes);
   renderOpsState(opsStateRes);
+  renderCapacity(capacityRes);
+  renderTimeEntries(timeEntriesRes);
+  renderIntakeForms(intakeFormsRes);
+  renderAutomationRuns(automationRunsRes);
 }
 
 function readSavedViews() {
@@ -482,11 +713,166 @@ function applyFocus(name) {
   refresh();
 }
 
+function openPalette() {
+  commandPalette.classList.remove("hidden");
+  paletteInput.focus();
+  renderPalette();
+}
+
+function closePalette() {
+  commandPalette.classList.add("hidden");
+}
+
+function runPaletteCommand(value) {
+  const v = value.trim().toLowerCase();
+  if (!v) return;
+  if (v.startsWith("status:")) {
+    statusFilter.value = v.slice(7);
+    refresh();
+    return;
+  }
+  if (v.startsWith("focus:")) {
+    applyFocus(v.slice(6));
+    return;
+  }
+  searchInput.value = value.trim();
+  refresh();
+}
+
+function renderPalette() {
+  const query = paletteInput.value.trim().toLowerCase();
+  paletteList.innerHTML = "";
+  const matches = currentProjects.filter(
+    (p) => !query || p.slug.toLowerCase().includes(query) || p.name.toLowerCase().includes(query)
+  );
+  for (const project of matches.slice(0, 8)) {
+    const li = document.createElement("li");
+    li.textContent = `${project.slug} (${project.status})`;
+    li.addEventListener("click", () => {
+      searchInput.value = project.slug;
+      closePalette();
+      refresh();
+    });
+    paletteList.appendChild(li);
+  }
+}
+
 refreshBtn.addEventListener("click", refresh);
 searchInput.addEventListener("input", refresh);
 statusFilter.addEventListener("change", refresh);
 priorityFilter.addEventListener("change", refresh);
 overdueFilter.addEventListener("change", refresh);
+commandPaletteBtn.addEventListener("click", openPalette);
+closePaletteBtn.addEventListener("click", closePalette);
+paletteInput.addEventListener("input", renderPalette);
+paletteInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    runPaletteCommand(paletteInput.value);
+    closePalette();
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+    event.preventDefault();
+    openPalette();
+  }
+  if (event.key === "Escape") closePalette();
+});
+selectAllProjects.addEventListener("change", () => {
+  if (selectAllProjects.checked) {
+    for (const project of currentProjects) selectedProjects.add(project.slug);
+  } else {
+    selectedProjects.clear();
+  }
+  renderProjects(currentProjects);
+});
+applyBulkBtn.addEventListener("click", async () => {
+  const status = bulkStatus.value;
+  const priority = bulkPriority.value;
+  if (!status && !priority) return;
+  const updates = currentProjects
+    .filter((p) => selectedProjects.has(p.slug))
+    .map((p) => ({ slug: p.slug, versionToken: p.versionToken, status, priority }));
+  if (!updates.length) return;
+  try {
+    const results = await applyBulkUpdates(updates);
+    const failed = results.filter((r) => !r.ok).length;
+    flash.textContent = failed ? `Bulk update completed with ${failed} failure(s)` : "Bulk update completed";
+    await refresh();
+  } catch (error) {
+    flash.textContent = error.message;
+  }
+});
+for (const input of [quietHoursInput, digestOverdue, digestStale, digestBlocked]) {
+  input.addEventListener("change", () => {
+    writeDigestPrefs(getDigestPrefs());
+    refresh();
+  });
+}
+addTimeEntryBtn.addEventListener("click", async () => {
+  try {
+    await addTimeEntry({
+      slug: timeSlug.value.trim(),
+      minutes: Number(timeMinutes.value || 0),
+      note: timeNote.value.trim()
+    });
+    timeMinutes.value = "";
+    timeNote.value = "";
+    await refresh();
+  } catch (error) {
+    flash.textContent = error.message;
+  }
+});
+submitIntakeBtn.addEventListener("click", async () => {
+  try {
+    const formId = intakeFormSelect.value;
+    const payload = JSON.parse(intakePayload.value || "{}");
+    const result = await submitIntake(formId, payload);
+    intakeList.innerHTML = `<li>Submitted: ${result.result?.type || "n/a"} ${result.result?.slug || ""}</li>`;
+    await refresh();
+  } catch (error) {
+    flash.textContent = error.message;
+  }
+});
+runAutomationDryBtn.addEventListener("click", async () => {
+  try {
+    const result = await runAutomation(true);
+    flash.textContent = `Automation dry-run evaluated ${result.evaluated} rule(s)`;
+    await refresh();
+  } catch (error) {
+    flash.textContent = error.message;
+  }
+});
+runAutomationBtn.addEventListener("click", async () => {
+  try {
+    const result = await runAutomation(false);
+    flash.textContent = `Automation run evaluated ${result.evaluated} rule(s)`;
+    await refresh();
+  } catch (error) {
+    flash.textContent = error.message;
+  }
+});
+exportSnapshotBtn.addEventListener("click", async () => {
+  try {
+    const result = await exportSnapshot();
+    flash.textContent = `Snapshot exported: ${result.path}`;
+  } catch (error) {
+    flash.textContent = error.message;
+  }
+});
+previewMigrationBtn.addEventListener("click", async () => {
+  try {
+    const items = JSON.parse(migrationInput.value || "[]");
+    const result = await previewMigration(items);
+    migrationList.innerHTML = `
+      <li>Total: ${result.total}</li>
+      <li>Normalized: ${result.normalized.length}</li>
+      <li>Issues: ${result.issues.length}</li>
+    `;
+  } catch (error) {
+    flash.textContent = error.message;
+  }
+});
 saveViewBtn.addEventListener("click", () => {
   const name = window.prompt("Saved view name?");
   if (!name) return;
@@ -516,5 +902,6 @@ for (const btn of focusBtns) {
 closeHistoryBtn.addEventListener("click", () => {
   historyDrawer.classList.add("hidden");
 });
+applyDigestPrefs(readDigestPrefs());
 renderSavedViews();
 refresh();

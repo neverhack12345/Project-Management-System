@@ -14,6 +14,7 @@
 
     <section class="controls">
       <input id="search" placeholder="Search projects..." />
+      <button id="commandPaletteBtn" title="Ctrl/Cmd+K">Command Palette</button>
       <select id="statusFilter">
         <option value="">All statuses</option>
         <option value="idea">idea</option>
@@ -33,6 +34,28 @@
       <select id="savedViews"></select>
       <button id="deleteViewBtn">Delete View</button>
       <button id="refreshBtn">Refresh</button>
+    </section>
+    <section class="controls">
+      <label><input type="checkbox" id="selectAllProjects" /> Select all visible</label>
+      <select id="bulkStatus">
+        <option value="">Bulk status...</option>
+        <option value="idea">idea</option>
+        <option value="planning">planning</option>
+        <option value="active">active</option>
+        <option value="blocked">blocked</option>
+        <option value="done">done</option>
+      </select>
+      <select id="bulkPriority">
+        <option value="">Bulk priority...</option>
+        <option value="low">low</option>
+        <option value="medium">medium</option>
+        <option value="high">high</option>
+      </select>
+      <button id="applyBulkBtn">Apply Bulk</button>
+      <label>Quiet hours <input id="quietHours" placeholder="22-07" style="width:70px" /></label>
+      <label><input type="checkbox" id="digestOverdue" checked /> overdue</label>
+      <label><input type="checkbox" id="digestStale" checked /> stale</label>
+      <label><input type="checkbox" id="digestBlocked" checked /> blocked</label>
     </section>
     <section class="controls">
       <button class="focusBtn" data-focus="DueSoon">DueSoon</button>
@@ -91,6 +114,43 @@
           <h2>7-Day Trends</h2>
           <ul id="trendsList" class="history"></ul>
         </article>
+        <article class="card">
+          <h2>Capacity (7d)</h2>
+          <ul id="capacityList" class="history"></ul>
+        </article>
+        <article class="card">
+          <h2>Time Entries</h2>
+          <div class="row">
+            <input id="timeSlug" placeholder="project slug" />
+            <input id="timeMinutes" placeholder="minutes" />
+            <input id="timeNote" placeholder="note" />
+            <button id="addTimeEntryBtn">Log</button>
+          </div>
+          <ul id="timeEntriesList" class="history"></ul>
+        </article>
+        <article class="card">
+          <h2>Intake Forms</h2>
+          <div class="row">
+            <select id="intakeFormSelect"></select>
+            <input id="intakePayload" placeholder='JSON payload, e.g. {"slug":"sample","task":"Review"}' />
+            <button id="submitIntakeBtn">Submit</button>
+          </div>
+          <ul id="intakeList" class="history"></ul>
+        </article>
+        <article class="card">
+          <h2>Automation Rules</h2>
+          <div class="row">
+            <button id="runAutomationDryBtn">Run Dry</button>
+            <button id="runAutomationBtn">Run</button>
+            <button id="exportSnapshotBtn">Export Snapshot</button>
+          </div>
+          <ul id="automationList" class="history"></ul>
+          <div class="row">
+            <input id="migrationInput" placeholder='Migration JSON array, e.g. [{"title":"X","state":"todo"}]' />
+            <button id="previewMigrationBtn">Preview Migration</button>
+          </div>
+          <ul id="migrationList" class="history"></ul>
+        </article>
       </section>
 
       <section>
@@ -126,7 +186,16 @@
           <button class="saveStatus">Save</button>
         </div>
         <div class="row">
+          <input class="decisionNoteInput" placeholder="Decision note (required when setting blocked/done)" />
+        </div>
+        <div class="row">
           <input class="taskInput" placeholder="Quick add task..." />
+          <select class="taskRecur">
+            <option value="">no recur</option>
+            <option value="daily">daily</option>
+            <option value="weekly">weekly</option>
+            <option value="monthly">monthly</option>
+          </select>
           <button class="addTask">Add Task</button>
         </div>
         <div class="row">
@@ -134,10 +203,20 @@
           <button class="saveMeta">Save Meta</button>
         </div>
         <div class="row">
+          <label><input type="checkbox" class="selectProject" /> select</label>
           <button class="loadHistory">Open History</button>
         </div>
       </article>
     </template>
+
+    <section id="commandPalette" class="drawer hidden">
+      <div class="drawer-head">
+        <h2>Command Palette</h2>
+        <button id="closePaletteBtn">Close</button>
+      </div>
+      <input id="paletteInput" placeholder="Type project slug/name or command (status:done, focus:blocked)" />
+      <ul id="paletteList" class="history"></ul>
+    </section>
 
     <script type="module" src="/app.js"></script>
   </body>

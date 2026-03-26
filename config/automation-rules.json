@@ -1,0 +1,17 @@
+{
+  "rules": [
+    {
+      "id": "refresh-playbook-when-alerts",
+      "name": "Refresh action queue when alerts exist",
+      "enabled": true,
+      "trigger": { "type": "manual" },
+      "conditions": [
+        { "type": "alertCountAtLeast", "value": 1 }
+      ],
+      "actions": [
+        { "type": "regeneratePlaybook" },
+        { "type": "appendAutomationNote", "value": "Playbook regenerated due to active alerts." }
+      ]
+    }
+  ]
+}

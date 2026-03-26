@@ -25,6 +25,9 @@ input, select, button {
   border-radius: 8px;
   padding: 8px;
 }
+input[type="checkbox"] {
+  transform: translateY(1px);
+}
 .smallBtn {
   padding: 2px 6px;
   font-size: 11px;
@@ -74,6 +77,16 @@ input, select, button {
 }
 .drawer.hidden {
   display: none;
+}
+#commandPalette input {
+  width: 100%;
+  box-sizing: border-box;
+}
+#intakePayload {
+  min-width: 320px;
+}
+#migrationInput {
+  min-width: 320px;
 }
 .drawer-head {
   display: flex;

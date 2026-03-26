@@ -3,6 +3,7 @@
 Markdown-first project and milestone tracker with:
 - project folders as source of truth
 - dashboard search, calendar, gantt, dependency, and health views
+- command palette, bulk project updates, and personal alert digest controls
 - markdown write APIs with conflict protection (`versionToken`)
 - operational reports (weekly review, alerts, impact, PR summary)
 - local stdio MCP server for AI agents (full-admin tool surface)
@@ -49,6 +50,51 @@ Strategy reference: `docs/COMPETITIVE_GAP_ANALYSIS.md`
 - `npm run ops:weekly` - run weekly automation bundle
 - `npm run mcp:start` - start local stdio MCP server
 - `npm run mcp:smoke` - run MCP smoke validation
+
+## Phase 1 productivity features
+
+- Command palette in dashboard (`Ctrl/Cmd+K`) for quick focus/search/status commands.
+- Bulk project updates from the dashboard (`status` and/or `priority`) across selected visible projects.
+- Personal alert digest controls (overdue/stale/blocked toggles + quiet-hours preference).
+- Recurring task schema v1 in `tasks.md`:
+  - format: `- [ ] task text [recur:daily|weekly|monthly]`
+  - quick-add UI now supports recurrence selection.
+
+## Phase 2 explainable planning features
+
+- Dependency explainability panel now surfaces concrete blocked paths and invalid-ref repair hints.
+- Status transitions to `blocked` or `done` now require a decision note in the dashboard.
+- Decision notes are appended to `reports/decision-log.ndjson` for local auditability.
+- Pre-stale nudges are now emitted by alerts (`preStaleEarly`, `preStaleLate`) before stale threshold.
+- Action queue now includes rescue actions for pre-stale projects.
+
+## Phase 3 personal capacity + intake features
+
+- Personal capacity API and dashboard card:
+  - endpoint: `GET /api/capacity?days=7&hoursPerDay=6`
+  - uses `estimateHours` from project `README.md` frontmatter.
+- Local time-entry logging:
+  - `POST /api/time-entries`
+  - `GET /api/time-entries?days=14`
+  - append-only storage in `reports/time-entries.ndjson`.
+- Intake forms:
+  - definitions in `forms/intake.json`
+  - `GET /api/intake/forms`
+  - `POST /api/intake/submit` with built-in `quick-task` and `quick-project`.
+
+## Phase 4 automation + portability features
+
+- Automation rules v1:
+  - config file: `config/automation-rules.json`
+  - `GET /api/automation/rules`
+  - `PUT /api/automation/rules`
+  - `POST /api/automation/run` with `dryRun` support
+  - replay inspection: `GET /api/automation/runs`
+- Migration preview assistant:
+  - `POST /api/migration/preview` for field mapping + validation issues.
+- Workspace snapshot export:
+  - `POST /api/workspace/export-snapshot`
+  - output: `reports/workspace-snapshot/workspace-snapshot-latest.json`.
 
 ## File/flag auto-ops trigger model
 

@@ -10,6 +10,7 @@ startDate: {{today}}
 dueDate: {{dueDate}}
 lastUpdated: {{today}}
 nextAction: Define first milestone
+estimateHours: 0
 description: ""
 ---
 

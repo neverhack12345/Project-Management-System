@@ -1,0 +1,14 @@
+{
+  "forms": [
+    {
+      "id": "quick-task",
+      "name": "Quick Task",
+      "fields": ["slug", "task", "recurrence"]
+    },
+    {
+      "id": "quick-project",
+      "name": "Quick Project",
+      "fields": ["name", "owner", "dueDays", "nextAction", "estimateHours"]
+    }
+  ]
+}
