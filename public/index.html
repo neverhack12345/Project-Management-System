@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Markdown Project Dashboard</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Markdown Project Dashboard</h1>
+      <p>Projects, milestones, calendar, and gantt from markdown files.</p>
+    </header>
+
+    <section class="controls">
+      <input id="search" placeholder="Search projects..." />
+      <select id="statusFilter">
+        <option value="">All statuses</option>
+        <option value="idea">idea</option>
+        <option value="planning">planning</option>
+        <option value="active">active</option>
+        <option value="blocked">blocked</option>
+        <option value="done">done</option>
+      </select>
+      <select id="priorityFilter">
+        <option value="">All priorities</option>
+        <option value="low">low</option>
+        <option value="medium">medium</option>
+        <option value="high">high</option>
+      </select>
+      <label><input type="checkbox" id="overdueFilter" /> Overdue only</label>
+      <button id="saveViewBtn">Save View</button>
+      <select id="savedViews"></select>
+      <button id="deleteViewBtn">Delete View</button>
+      <button id="refreshBtn">Refresh</button>
+    </section>
+    <section class="controls">
+      <button class="focusBtn" data-focus="DueSoon">DueSoon</button>
+      <button class="focusBtn" data-focus="Blocked">Blocked</button>
+      <button class="focusBtn" data-focus="Overdue">Overdue</button>
+      <button class="focusBtn" data-focus="NeedsUpdate">NeedsUpdate</button>
+      <span id="flash"></span>
+    </section>
+
+    <main>
+      <section id="historyDrawer" class="drawer hidden">
+        <div class="drawer-head">
+          <h2 id="historyTitle">Project History</h2>
+          <button id="closeHistoryBtn">Close</button>
+        </div>
+        <ul id="historyList" class="history"></ul>
+      </section>
+
+      <section class="cards">
+        <article class="card">
+          <h2>Top 5 At Risk</h2>
+          <ul id="healthList" class="history"></ul>
+        </article>
+        <article class="card">
+          <h2>Alerts</h2>
+          <ul id="alertsList" class="history"></ul>
+        </article>
+        <article class="card">
+          <h2>Portfolio Activity</h2>
+          <ul id="activityList" class="history"></ul>
+        </article>
+      </section>
+
+      <section class="cards">
+        <article class="card">
+          <h2>Dependency Insights</h2>
+          <ul id="dependencyList" class="history"></ul>
+        </article>
+        <article class="card">
+          <h2>Portfolio Summary</h2>
+          <ul id="portfolioList" class="history"></ul>
+        </article>
+      </section>
+
+      <section>
+        <h2>Projects</h2>
+        <div id="projectList" class="cards"></div>
+      </section>
+
+      <section>
+        <h2>Calendar (Milestones)</h2>
+        <div id="calendar" class="calendar"></div>
+      </section>
+
+      <section>
+        <h2>Gantt</h2>
+        <div id="gantt" class="gantt"></div>
+      </section>
+    </main>
+
+    <template id="projectCardTpl">
+      <article class="card">
+        <h3 class="title"></h3>
+        <p class="meta"></p>
+        <p class="action"></p>
+        <div class="row">
+          <label>Status</label>
+          <select class="statusSelect">
+            <option value="idea">idea</option>
+            <option value="planning">planning</option>
+            <option value="active">active</option>
+            <option value="blocked">blocked</option>
+            <option value="done">done</option>
+          </select>
+          <button class="saveStatus">Save</button>
+        </div>
+        <div class="row">
+          <input class="taskInput" placeholder="Quick add task..." />
+          <button class="addTask">Add Task</button>
+        </div>
+        <div class="row">
+          <input class="blockedReasonInput" placeholder="Blocked reason..." />
+          <button class="saveMeta">Save Meta</button>
+        </div>
+        <div class="row">
+          <button class="loadHistory">Open History</button>
+        </div>
+      </article>
+    </template>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

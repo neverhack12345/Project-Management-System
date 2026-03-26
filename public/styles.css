@@ -1,0 +1,125 @@
+:root {
+  font-family: Inter, Segoe UI, sans-serif;
+  color-scheme: dark;
+}
+body {
+  margin: 0;
+  background: #0f1115;
+  color: #e6e9ef;
+}
+header, .controls, main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px;
+}
+.controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+input, select, button {
+  background: #1b2030;
+  color: #e6e9ef;
+  border: 1px solid #333b52;
+  border-radius: 8px;
+  padding: 8px;
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.card {
+  border: 1px solid #333b52;
+  border-radius: 12px;
+  padding: 12px;
+  background: #141927;
+}
+.row {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.row .taskInput {
+  flex: 1;
+}
+.history {
+  margin: 8px 0 0;
+  padding-left: 16px;
+  font-size: 12px;
+}
+.history li {
+  margin: 2px 0;
+}
+.meta-blocked {
+  color: #ff9f9f;
+  font-weight: 600;
+}
+#flash {
+  font-size: 12px;
+  color: #ffb86b;
+}
+.drawer {
+  border: 1px solid #333b52;
+  border-radius: 12px;
+  background: #141927;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+.drawer.hidden {
+  display: none;
+}
+.drawer-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.calendar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.calendar-day {
+  border: 1px solid #333b52;
+  border-radius: 8px;
+  min-height: 80px;
+  padding: 6px;
+  background: #141927;
+}
+.calendar-day .date {
+  font-size: 12px;
+  opacity: 0.8;
+}
+.calendar-event {
+  font-size: 12px;
+  margin-top: 4px;
+  background: #202844;
+  border-radius: 6px;
+  padding: 2px 4px;
+}
+.gantt {
+  border: 1px solid #333b52;
+  border-radius: 10px;
+  padding: 8px;
+}
+.gantt-row {
+  margin: 8px 0;
+}
+.gantt-title {
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.gantt-track {
+  height: 14px;
+  background: #1b2030;
+  border-radius: 8px;
+  position: relative;
+}
+.gantt-bar {
+  position: absolute;
+  top: 0;
+  height: 14px;
+  border-radius: 8px;
+  background: #4f8cff;
+}

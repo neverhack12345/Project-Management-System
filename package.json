@@ -1,0 +1,24 @@
+{
+  "name": "project-management-system",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Markdown-first project management dashboard with calendar and gantt views.",
+  "scripts": {
+    "dev": "node src/server.js",
+    "start": "node src/server.js",
+    "new:project": "node scripts/new-project.mjs",
+    "validate": "node scripts/validate.mjs",
+    "stale": "node scripts/stale-report.mjs",
+    "review:weekly": "node scripts/weekly-review.mjs",
+    "alerts": "node scripts/alerts.mjs",
+    "migrate:schema": "node scripts/migrate-schema.mjs",
+    "impact": "node scripts/impact-check.mjs",
+    "search:index": "node scripts/build-search-index.mjs",
+    "pr:summary": "node scripts/pr-summary.mjs"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "gray-matter": "^4.0.3"
+  }
+}
