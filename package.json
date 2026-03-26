@@ -15,9 +15,13 @@
     "migrate:schema": "node scripts/migrate-schema.mjs",
     "impact": "node scripts/impact-check.mjs",
     "search:index": "node scripts/build-search-index.mjs",
-    "pr:summary": "node scripts/pr-summary.mjs"
+    "pr:summary": "node scripts/pr-summary.mjs",
+    "mcp:start": "node src/mcp-server.js",
+    "mcp:dev": "node src/mcp-server.js",
+    "mcp:smoke": "node scripts/mcp-smoke.mjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.4",
     "express": "^4.21.2",
     "gray-matter": "^4.0.3"
   }
