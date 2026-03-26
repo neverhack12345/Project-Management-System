@@ -42,6 +42,24 @@ Schema reference: `docs/SCHEMA.md`
 - `npm run migrate:schema` - normalize schema version fields
 - `npm run pr:summary` - generate project-focused PR summary
 - `npm run stale` - stale project report
+- `npm run snapshot` - write daily metrics snapshot for trend tracking
+- `npm run ops:daily` - run daily automation bundle
+- `npm run ops:weekly` - run weekly automation bundle
+- `npm run mcp:start` - start local stdio MCP server
+- `npm run mcp:smoke` - run MCP smoke validation
+
+## File/flag auto-ops trigger model
+
+- State file: `reports/ops-state.json`
+- Lock file: `reports/ops-state.lock`
+- Daily/weekly/monthly tasks run automatically when the website/API or MCP server is accessed.
+- Runs are throttled with a cooldown window to avoid repeated executions on every request.
+- If a run fails, error details are persisted in `ops-state.json` and services continue running.
+- Ops status is visible in:
+  - dashboard card: **Auto Ops Status**
+  - API: `GET /api/ops-state`
+  - MCP tool: `get_ops_state`
+- Run order when due: monthly -> weekly -> daily.
 
 ## Ops cadence
 
@@ -84,3 +102,8 @@ Schema reference: `docs/SCHEMA.md`
   - Ensure dependencies are installed: `npm install`.
   - Re-run: `npm run mcp:smoke`.
   - Start server directly for debugging: `npm run mcp:start`.
+
+- **Auto ops not running**
+  - Inspect `reports/ops-state.json` (`lastRunStatus`, `lastRunError`, timestamps).
+  - If present, remove stale lock file `reports/ops-state.lock`.
+  - Trigger checks by visiting `/api/ops-state` or calling MCP `get_ops_state`.

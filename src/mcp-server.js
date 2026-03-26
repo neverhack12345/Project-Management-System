@@ -26,6 +26,7 @@ import {
   computeHealth
 } from "./indexer.js";
 import { getPortfolioActivity, getProjectHistory } from "./git-history.js";
+import { readOpsState, runDueOps } from "./auto-ops.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -62,6 +63,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "get_dependencies", description: "Get dependency insights", inputSchema: { type: "object", properties: {} } },
     { name: "get_portfolio_summary", description: "Get owner/status/month summary", inputSchema: { type: "object", properties: {} } },
     { name: "get_alerts", description: "Get generated alerts", inputSchema: { type: "object", properties: {} } },
+    { name: "get_today_brief", description: "Get consolidated daily operational brief", inputSchema: { type: "object", properties: {} } },
+    { name: "get_trends", description: "Get snapshot trends", inputSchema: { type: "object", properties: { days: { type: "number" } } } },
+    { name: "get_ops_state", description: "Get auto-ops state file status", inputSchema: { type: "object", properties: {} } },
     {
       name: "update_project_status",
       description: "Update project status (side effect, requires versionToken)",
@@ -119,11 +123,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "run_impact_check", description: "Generate impact report", inputSchema: { type: "object", properties: { dryRun: { type: "boolean" } } } },
     { name: "run_schema_migration", description: "Run schema migration", inputSchema: { type: "object", properties: { dryRun: { type: "boolean" } } } },
     { name: "generate_pr_summary", description: "Generate PR summary markdown", inputSchema: { type: "object", properties: { dryRun: { type: "boolean" } } } }
+    ,
+    { name: "playbook_daily_standup", description: "Run daily standup playbook (validate+alerts+brief)", inputSchema: { type: "object", properties: { dryRun: { type: "boolean" } } } },
+    { name: "playbook_unblock_scan", description: "Run unblock scan playbook", inputSchema: { type: "object", properties: { dryRun: { type: "boolean" } } } },
+    { name: "playbook_weekly_review", description: "Run weekly review playbook", inputSchema: { type: "object", properties: { dryRun: { type: "boolean" } } } }
   ]
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const args = request.params.arguments || {};
+  runDueOps({ source: "mcp" }).catch(() => {});
   try {
     switch (request.params.name) {
       case "list_projects":
@@ -160,6 +169,38 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           return contentJson({ alerts: [] });
         }
       }
+      case "get_today_brief": {
+        const projects = await loadAllProjects();
+        const now = new Date();
+        const dueSoonCutoff = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const ranked = projects
+          .map((project) => ({ slug: project.slug, score: computeHealth(project), nextAction: project.nextAction }))
+          .sort((a, b) => a.score - b.score);
+        return contentJson({
+          topRisks: ranked.slice(0, 5),
+          overdue: projects.filter((p) => p.dueDate && new Date(p.dueDate) < now && p.status !== "done").map((p) => p.slug),
+          dueSoon: projects.filter((p) => p.dueDate && new Date(p.dueDate) >= now && new Date(p.dueDate) <= dueSoonCutoff).map((p) => p.slug),
+          blocked: projects.filter((p) => p.status === "blocked").map((p) => p.slug),
+          stale: projects.filter((p) => now.getTime() - new Date(p.lastUpdated || p.modifiedAt).getTime() > 14 * 24 * 60 * 60 * 1000).map((p) => p.slug)
+        });
+      }
+      case "get_trends": {
+        const days = Math.max(1, Math.min(Number(args.days) || 7, 90));
+        const snapshotsDir = path.join(process.cwd(), "reports", "snapshots");
+        try {
+          const files = (await fs.readdir(snapshotsDir)).filter((f) => f.endsWith(".json")).sort().slice(-days);
+          const rows = [];
+          for (const file of files) {
+            const raw = await fs.readFile(path.join(snapshotsDir, file), "utf8");
+            rows.push(JSON.parse(raw));
+          }
+          return contentJson({ days, rows });
+        } catch {
+          return contentJson({ days, rows: [] });
+        }
+      }
+      case "get_ops_state":
+        return contentJson({ state: await readOpsState() });
       case "update_project_status":
         await assertVersionToken(args.slug, args.versionToken);
         return contentJson(await updateProjectStatus(args.slug, args.status));
@@ -199,6 +240,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return contentJson(await runNodeScript("migrate-schema.mjs", [], args.dryRun));
       case "generate_pr_summary":
         return contentJson(await runNodeScript("pr-summary.mjs", [], args.dryRun));
+      case "playbook_daily_standup": {
+        const dryRun = Boolean(args.dryRun);
+        const validate = await runNodeScript("validate.mjs", [], dryRun);
+        const alerts = await runNodeScript("alerts.mjs", [], dryRun);
+        const projects = await loadAllProjects();
+        const ranked = projects.map((p) => ({ slug: p.slug, score: computeHealth(p) })).sort((a, b) => a.score - b.score);
+        return contentJson({ ok: true, playbook: "daily_standup", validate, alerts, topRisks: ranked.slice(0, 5) });
+      }
+      case "playbook_unblock_scan": {
+        const dryRun = Boolean(args.dryRun);
+        const deps = buildDependencyInsights(await loadAllProjects());
+        const blocked = (await loadAllProjects()).filter((p) => p.status === "blocked").map((p) => ({ slug: p.slug, reason: p.blockedReason }));
+        const alerts = await runNodeScript("alerts.mjs", [], dryRun);
+        return contentJson({ ok: true, playbook: "unblock_scan", blocked, dependencyInvalidRefs: deps.invalidRefs, alerts });
+      }
+      case "playbook_weekly_review": {
+        const dryRun = Boolean(args.dryRun);
+        const validate = await runNodeScript("validate.mjs", [], dryRun);
+        const review = await runNodeScript("weekly-review.mjs", [], dryRun);
+        const impact = await runNodeScript("impact-check.mjs", [], dryRun);
+        const prSummary = await runNodeScript("pr-summary.mjs", [], dryRun);
+        return contentJson({ ok: true, playbook: "weekly_review", validate, review, impact, prSummary });
+      }
       default:
         return contentJson({ ok: false, error: `Unknown tool: ${request.params.name}` });
     }

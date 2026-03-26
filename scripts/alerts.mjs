@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { loadAllProjects } from "../src/markdown-store.js";
+import { buildDependencyInsights } from "../src/indexer.js";
 
 function arg(name, fallback) {
   const idx = process.argv.indexOf(`--${name}`);
@@ -15,6 +16,7 @@ const dueCutoff = new Date(now.getTime() + dueInDays * 24 * 60 * 60 * 1000);
 
 const projects = await loadAllProjects();
 const alerts = [];
+const dependencyInsights = buildDependencyInsights(projects);
 
 for (const project of projects) {
   const last = new Date(project.lastUpdated || project.modifiedAt);
@@ -29,6 +31,26 @@ for (const project of projects) {
 
   if (project.status === "blocked" && staleFor >= blockedDays) {
     alerts.push({ type: "blockedTooLong", slug: project.slug, days: staleFor, reason: project.blockedReason || "" });
+  }
+}
+
+for (const invalid of dependencyInsights.invalidRefs || []) {
+  alerts.push({
+    type: "dependencyInvalidRef",
+    milestone: invalid.from,
+    missing: invalid.missing
+  });
+}
+
+const blockedBy = dependencyInsights.blockedBy || {};
+for (const milestoneKey of Object.keys(blockedBy)) {
+  const deps = blockedBy[milestoneKey];
+  if (deps.length >= 3) {
+    alerts.push({
+      type: "dependencyChainRisk",
+      milestone: milestoneKey,
+      dependencyCount: deps.length
+    });
   }
 }
 

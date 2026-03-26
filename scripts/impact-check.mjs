@@ -18,9 +18,35 @@ try {
 const changed = stdout.split("\n").filter(Boolean);
 const impact = [];
 for (const file of changed) {
-  if (file.endsWith("/spec.md")) impact.push({ file, impact: "specChanged-reviewMilestonesAndTasks" });
-  else if (file.endsWith("/milestones.md")) impact.push({ file, impact: "timelineAndDependencyImpact" });
-  else if (file.endsWith("/README.md")) impact.push({ file, impact: "statusOrMetadataImpact" });
+  if (file.endsWith("/spec.md")) {
+    impact.push({
+      file,
+      category: "specScopeRisk",
+      severity: "high",
+      recommendation: "Review impacted milestones/tasks and adjust dates if scope changed."
+    });
+  } else if (file.endsWith("/milestones.md")) {
+    impact.push({
+      file,
+      category: "milestoneTimelineRisk",
+      severity: "high",
+      recommendation: "Re-run dependency and due-date checks for timeline stability."
+    });
+  } else if (file.endsWith("/README.md")) {
+    impact.push({
+      file,
+      category: "metadataStatusRisk",
+      severity: "medium",
+      recommendation: "Verify status/owner/nextAction consistency with current execution."
+    });
+  } else {
+    impact.push({
+      file,
+      category: "generalChange",
+      severity: "low",
+      recommendation: "Review for downstream references and report alignment."
+    });
+  }
 }
 
 await fs.mkdir("reports", { recursive: true });

@@ -23,11 +23,12 @@ Command:
 ## Tool groups
 
 - Read/query:
-  - `list_projects`, `get_project`, `get_timeline`, `get_activity`, `get_health`, `get_dependencies`, `get_portfolio_summary`, `get_alerts`
+  - `list_projects`, `get_project`, `get_timeline`, `get_activity`, `get_health`, `get_dependencies`, `get_portfolio_summary`, `get_alerts`, `get_today_brief`, `get_trends`, `get_ops_state`
 - Write/update:
   - `update_project_status`, `add_project_task`, `update_project_meta`, `update_milestone`
 - Ops/admin:
   - `run_validate`, `run_weekly_review`, `run_alerts`, `run_search_index`, `run_impact_check`, `run_schema_migration`, `generate_pr_summary`
+  - `playbook_daily_standup`, `playbook_unblock_scan`, `playbook_weekly_review`
 
 ## Safety rules
 
@@ -36,6 +37,8 @@ Command:
   - `code: TOKEN_REQUIRED` when missing token
 - Admin tools support `dryRun` for no-side-effect execution.
 - Keep `ENABLE_AUTO_COMMIT` off unless explicitly needed.
+- MCP requests trigger file/flag auto-ops due checks. State is tracked in `reports/ops-state.json`.
+- Auto-ops due order is monthly -> weekly -> daily.
 
 ## Agent workflow examples
 
@@ -51,3 +54,16 @@ Command:
   1. `get_dependencies`
   2. `get_activity`
   3. `update_project_meta` (blocked reason / next action)
+
+- Playbook shortcuts:
+  1. `playbook_daily_standup` for validate + alerts + top risks
+  2. `playbook_unblock_scan` for blocked/dependency risk review
+  3. `playbook_weekly_review` for validate + weekly review + impact + PR summary
+
+## Ops state visibility
+
+- Query current state with `get_ops_state`.
+- Key fields:
+  - `lastDailyRun`, `lastWeeklyRun`, `lastMonthlyRun`
+  - `lastRunStatus`, `lastRunError`
+  - `lastRunAt`, `lastRunSource`, `lastRunTasks`

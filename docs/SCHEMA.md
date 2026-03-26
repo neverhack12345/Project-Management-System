@@ -82,3 +82,12 @@ Use markdown checkboxes:
 ## Date format
 
 All dates must be ISO `YYYY-MM-DD`.
+
+## Ops state files
+
+The automation layer also writes operational state files under `reports/`:
+
+- `ops-state.json` - last daily/weekly/monthly run metadata and error status.
+- `ops-state.lock` - transient lock file preventing concurrent auto-ops execution.
+
+These files are operational metadata and not part of per-project frontmatter schema.

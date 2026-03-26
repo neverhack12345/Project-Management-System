@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { maybeAutoCommit } from "./git-ops.js";
 import { getPortfolioActivity, getProjectHistory } from "./git-history.js";
 import { buildDependencyInsights, buildPortfolioSummary, buildTimeline, computeHealth, queryIndex } from "./indexer.js";
+import { readOpsState, runDueOps } from "./auto-ops.js";
 import {
   addTask,
   assertVersionToken,
@@ -25,6 +26,12 @@ async function createApp() {
   const app = express();
   app.use(express.json());
   app.use(express.static(publicDir));
+  app.use((req, _res, next) => {
+    if (req.path.startsWith("/api") || req.path === "/") {
+      runDueOps({ source: "web" }).catch(() => {});
+    }
+    next();
+  });
 
   app.get("/api/projects", async (req, res) => {
     const result = await queryIndex(req.query);
@@ -86,6 +93,62 @@ async function createApp() {
   app.get("/api/portfolio", async (_req, res) => {
     const projects = await loadAllProjects();
     res.json({ ok: true, summary: buildPortfolioSummary(projects) });
+  });
+
+  app.get("/api/ops-state", async (_req, res) => {
+    res.json({ ok: true, state: await readOpsState() });
+  });
+
+  app.get("/api/today-brief", async (_req, res) => {
+    const projects = await loadAllProjects();
+    const now = new Date();
+    const dueSoonCutoff = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const ranked = projects
+      .map((project) => ({ slug: project.slug, name: project.name, score: computeHealth(project), nextAction: project.nextAction }))
+      .sort((a, b) => a.score - b.score);
+    const overdue = projects
+      .filter((p) => p.dueDate && new Date(p.dueDate) < now && p.status !== "done")
+      .map((p) => ({ slug: p.slug, dueDate: p.dueDate }));
+    const dueSoon = projects
+      .filter((p) => p.dueDate && new Date(p.dueDate) >= now && new Date(p.dueDate) <= dueSoonCutoff)
+      .map((p) => ({ slug: p.slug, dueDate: p.dueDate }));
+    const blocked = projects
+      .filter((p) => p.status === "blocked")
+      .map((p) => ({ slug: p.slug, reason: p.blockedReason || "" }));
+    const stale = projects
+      .filter((p) => {
+        const d = new Date(p.lastUpdated || p.modifiedAt);
+        return now.getTime() - d.getTime() > 14 * 24 * 60 * 60 * 1000;
+      })
+      .map((p) => ({ slug: p.slug, lastUpdated: p.lastUpdated }));
+    res.json({
+      ok: true,
+      topRisks: ranked.slice(0, 5),
+      overdue,
+      dueSoon,
+      blocked,
+      stale,
+      nextActions: ranked.slice(0, 5).map((r) => ({ slug: r.slug, nextAction: r.nextAction || "n/a" }))
+    });
+  });
+
+  app.get("/api/trends", async (req, res) => {
+    const days = Math.max(1, Math.min(Number(req.query.days) || 7, 90));
+    const snapshotsDir = path.join(reportsDir, "snapshots");
+    try {
+      const files = (await fs.readdir(snapshotsDir))
+        .filter((f) => f.endsWith(".json"))
+        .sort()
+        .slice(-days);
+      const rows = [];
+      for (const file of files) {
+        const raw = await fs.readFile(path.join(snapshotsDir, file), "utf8");
+        rows.push(JSON.parse(raw));
+      }
+      res.json({ ok: true, days, rows });
+    } catch {
+      res.json({ ok: true, days, rows: [] });
+    }
   });
 
   app.patch("/api/projects/:slug/status", async (req, res) => {

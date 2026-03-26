@@ -21,6 +21,9 @@ const alertsList = document.getElementById("alertsList");
 const activityList = document.getElementById("activityList");
 const dependencyList = document.getElementById("dependencyList");
 const portfolioList = document.getElementById("portfolioList");
+const todayBriefList = document.getElementById("todayBriefList");
+const trendsList = document.getElementById("trendsList");
+const opsStateList = document.getElementById("opsStateList");
 
 const SAVED_VIEWS_KEY = "project_dashboard_saved_views";
 
@@ -60,6 +63,18 @@ async function fetchDependencies() {
 }
 async function fetchPortfolio() {
   const res = await fetch("/api/portfolio");
+  return res.json();
+}
+async function fetchTodayBrief() {
+  const res = await fetch("/api/today-brief");
+  return res.json();
+}
+async function fetchTrends() {
+  const res = await fetch("/api/trends?days=7");
+  return res.json();
+}
+async function fetchOpsState() {
+  const res = await fetch("/api/ops-state");
   return res.json();
 }
 
@@ -306,8 +321,40 @@ function renderPortfolio(data) {
   `;
 }
 
+function renderTodayBrief(data) {
+  todayBriefList.innerHTML = `
+    <li>Top risks: ${(data.topRisks || []).length}</li>
+    <li>Overdue: ${(data.overdue || []).length}</li>
+    <li>Due soon: ${(data.dueSoon || []).length}</li>
+    <li>Blocked: ${(data.blocked || []).length}</li>
+    <li>Stale: ${(data.stale || []).length}</li>
+  `;
+}
+
+function renderTrends(data) {
+  trendsList.innerHTML = "";
+  for (const row of data.rows || []) {
+    const li = document.createElement("li");
+    li.textContent = `${row.date}: health=${row.avgHealth}, overdue=${row.overdue}, blocked=${row.blocked}`;
+    trendsList.appendChild(li);
+  }
+  if (!trendsList.children.length) trendsList.innerHTML = "<li>No snapshots yet.</li>";
+}
+
+function renderOpsState(data) {
+  const s = data.state || {};
+  opsStateList.innerHTML = `
+    <li>Last daily: ${s.lastDailyRun || "never"}</li>
+    <li>Last weekly: ${s.lastWeeklyRun || "never"}</li>
+    <li>Last monthly: ${s.lastMonthlyRun || "never"}</li>
+    <li>Status: ${s.lastRunStatus || "unknown"}</li>
+    <li>Source: ${s.lastRunSource || "n/a"}</li>
+    <li>Error: ${s.lastRunError || "none"}</li>
+  `;
+}
+
 async function refresh() {
-  const [projectsRes, timelineRes, healthRes, alertsRes, activityRes, dependenciesRes, portfolioRes] =
+  const [projectsRes, timelineRes, healthRes, alertsRes, activityRes, dependenciesRes, portfolioRes, todayBriefRes, trendsRes, opsStateRes] =
     await Promise.all([
       fetchProjects(),
       fetchTimeline(),
@@ -315,7 +362,10 @@ async function refresh() {
       fetchAlerts(),
       fetchActivity(),
       fetchDependencies(),
-      fetchPortfolio()
+      fetchPortfolio(),
+      fetchTodayBrief(),
+      fetchTrends(),
+      fetchOpsState()
     ]);
   renderProjects(projectsRes.projects || []);
   renderCalendar(timelineRes.events || []);
@@ -325,6 +375,9 @@ async function refresh() {
   renderActivity(activityRes);
   renderDependencies(dependenciesRes);
   renderPortfolio(portfolioRes);
+  renderTodayBrief(todayBriefRes);
+  renderTrends(trendsRes);
+  renderOpsState(opsStateRes);
 }
 
 function readSavedViews() {

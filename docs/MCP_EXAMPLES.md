@@ -31,3 +31,27 @@ If conflict occurs (`VERSION_CONFLICT`), re-read project and retry with latest t
 1. `run_search_index`
 2. `run_impact_check`
 3. `generate_pr_summary`
+
+## 5) One-call daily standup
+
+1. Call `playbook_daily_standup`.
+2. Read the returned `topRisks` and script outputs.
+
+## 6) One-call weekly review workflow
+
+1. Call `playbook_weekly_review`.
+2. Confirm outputs from validation, weekly review, impact check, and PR summary.
+
+## 7) Check auto-ops state from MCP
+
+1. Call `get_ops_state`.
+2. Inspect:
+   - `lastRunStatus` for success/error
+   - `lastRunTasks` for what executed
+   - `lastRunError` when troubleshooting
+
+## 8) Trigger auto-ops opportunistically
+
+1. Use any MCP tool call (for example `list_projects`).
+2. Auto-ops due-check runs in the background.
+3. Call `get_ops_state` to confirm whether daily/weekly/monthly tasks executed.
