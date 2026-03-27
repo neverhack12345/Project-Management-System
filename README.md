@@ -2,6 +2,13 @@
 
 Markdown-first project and milestone tracker with dashboard UI, automation playbooks, and local MCP support for agents.
 
+## Highlights
+
+- Project-assigned tasks with deadlines and recurring options.
+- Cross-project task dependency tracking.
+- Drag-and-drop Kanban (`backlog`, `todo`, `in-progress`, `done`).
+- Fact verification workflow (fact registry + task fact refs + done-gating).
+
 ## Quick Start
 
 1. `npm install`
@@ -16,6 +23,7 @@ Markdown-first project and milestone tracker with dashboard UI, automation playb
 - MCP contracts: `docs/MCP_TOOL_REFERENCE.md`
 - CLI ops commands: `docs/CLI_OPS_REFERENCE.md`
 - Human UI usage: `docs/UI_USER_GUIDE.md`
+- User stories: `docs/USER_STORIES.md`
 - Operations runbook: `docs/OPS_RUNBOOK.md`
 
 ## Role-Based Navigation

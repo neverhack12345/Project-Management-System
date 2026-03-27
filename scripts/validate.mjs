@@ -14,6 +14,12 @@ const requiredProjectFields = [
 
 const errors = [];
 const projects = await loadAllProjects();
+const allFactRefs = new Set();
+for (const project of projects) {
+  for (const fact of project.facts || []) {
+    allFactRefs.add(fact.ref);
+  }
+}
 
 for (const project of projects) {
   for (const field of requiredProjectFields) {
@@ -48,6 +54,28 @@ for (const project of projects) {
       const localDep = dep.includes(":") ? dep.split(":")[1] : dep;
       if (!idSet.has(localDep) && !dep.includes(":")) {
         errors.push(`${project.slug}: milestone ${ms.id} dependsOn missing local milestone ${dep}`);
+      }
+    }
+  }
+
+  for (const fact of project.facts || []) {
+    if (!["unknown", "unverified", "in-review", "verified"].includes(fact.status)) {
+      errors.push(`${project.slug}: fact ${fact.factId} has invalid status "${fact.status}"`);
+    }
+    if (fact.status === "verified") {
+      if (!(fact.sources || []).length) {
+        errors.push(`${project.slug}: fact ${fact.factId} verified but missing sources`);
+      }
+      if (!String(fact.verificationNote || "").trim()) {
+        errors.push(`${project.slug}: fact ${fact.factId} verified but missing verificationNote`);
+      }
+    }
+  }
+
+  for (const task of project.tasks || []) {
+    for (const ref of task.factRefs || []) {
+      if (!allFactRefs.has(ref)) {
+        errors.push(`${project.slug}: task ${task.id} has unknown fact ref ${ref}`);
       }
     }
   }

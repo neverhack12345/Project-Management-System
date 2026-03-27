@@ -61,12 +61,25 @@ export function buildTimeline(projects) {
 
 export function buildDependencyInsights(projects) {
   const milestoneMap = new Map();
-  const edges = [];
+  const milestoneEdges = [];
   const invalidRefs = [];
+  const taskNodeMap = new Map();
+  const taskEdges = [];
+  const invalidTaskRefs = [];
+  const crossProjectTaskEdges = [];
   for (const project of projects) {
     for (const ms of project.milestones || []) {
       const key = `${project.slug}:${ms.id}`;
       milestoneMap.set(key, { ...ms, projectSlug: project.slug, projectStatus: project.status });
+    }
+    for (const task of project.tasks || []) {
+      const key = task.ref;
+      taskNodeMap.set(key, {
+        key,
+        projectSlug: project.slug,
+        taskId: task.id,
+        done: Boolean(task.done)
+      });
     }
   }
   for (const project of projects) {
@@ -77,17 +90,62 @@ export function buildDependencyInsights(projects) {
         if (!milestoneMap.has(depKey)) {
           invalidRefs.push({ from, missing: depKey });
         } else {
-          edges.push({ from: depKey, to: from });
+          milestoneEdges.push({ from: depKey, to: from });
+        }
+      }
+    }
+    for (const task of project.tasks || []) {
+      const taskKey = task.ref;
+      const refs = task.dependsOn || [];
+      for (const ref of refs) {
+        if (!taskNodeMap.has(ref)) {
+          invalidTaskRefs.push({ from: taskKey, missing: ref });
+          continue;
+        }
+        taskEdges.push({ from: ref, to: taskKey });
+        if (ref.split(":")[0] !== project.slug) {
+          crossProjectTaskEdges.push({ from: ref, to: taskKey });
         }
       }
     }
   }
   const blockedBy = {};
-  for (const edge of edges) {
+  for (const edge of milestoneEdges) {
     blockedBy[edge.to] = blockedBy[edge.to] || [];
     blockedBy[edge.to].push(edge.from);
   }
-  return { edges, invalidRefs, blockedBy };
+  const taskBlockedBy = {};
+  for (const edge of taskEdges) {
+    taskBlockedBy[edge.to] = taskBlockedBy[edge.to] || [];
+    taskBlockedBy[edge.to].push(edge.from);
+  }
+  const tasksByProject = {};
+  const verificationByProject = {};
+  for (const project of projects) {
+    tasksByProject[project.slug] = {
+      total: project.taskSummary?.total || 0,
+      open: project.taskSummary?.open || 0,
+      blockedByDependencies: project.taskSummary?.blockedByDependencies || 0,
+      unresolvedFactRefs: project.taskSummary?.unresolvedFactRefs || 0,
+      tasksWithUnresolvedFacts: project.taskSummary?.tasksWithUnresolvedFacts || 0
+    };
+    verificationByProject[project.slug] = {
+      totalFacts: project.factsSummary?.total || 0,
+      verifiedFacts: project.factsSummary?.verified || 0,
+      unresolvedFacts: project.factsSummary?.unresolved || 0
+    };
+  }
+  return {
+    edges: milestoneEdges,
+    invalidRefs,
+    blockedBy,
+    taskEdges,
+    invalidTaskRefs,
+    taskBlockedBy,
+    crossProjectTaskEdges,
+    tasksByProject,
+    verificationByProject
+  };
 }
 
 export function computeHealth(project) {

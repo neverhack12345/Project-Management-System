@@ -132,7 +132,7 @@
           <h2>Intake Forms</h2>
           <div class="row">
             <select id="intakeFormSelect"></select>
-            <input id="intakePayload" placeholder='JSON payload, e.g. {"slug":"sample","task":"Review"}' />
+            <input id="intakePayload" placeholder='JSON payload, e.g. {"slug":"sample","task":"Review","dueDate":"2026-04-10"}' />
             <button id="submitIntakeBtn">Submit</button>
           </div>
           <ul id="intakeList" class="history"></ul>
@@ -151,6 +151,11 @@
           </div>
           <ul id="migrationList" class="history"></ul>
         </article>
+      </section>
+
+      <section>
+        <h2>Task Kanban</h2>
+        <div id="kanbanBoard" class="kanban-board"></div>
       </section>
 
       <section>
@@ -190,6 +195,9 @@
         </div>
         <div class="row">
           <input class="taskInput" placeholder="Quick add task..." />
+          <input class="taskDueDate" type="date" title="Task deadline" />
+          <input class="taskDeps" placeholder="depends on task refs: id or project:id" />
+          <input class="taskFacts" placeholder="fact refs: fact-id or project:fact-id" />
           <select class="taskRecur">
             <option value="">no recur</option>
             <option value="daily">daily</option>
@@ -202,6 +210,19 @@
           <input class="blockedReasonInput" placeholder="Blocked reason..." />
           <button class="saveMeta">Save Meta</button>
         </div>
+        <div class="row">
+          <input class="factStatementInput" placeholder="Add fact statement..." />
+          <select class="factStatusSelect">
+            <option value="unknown">unknown</option>
+            <option value="unverified">unverified</option>
+            <option value="in-review">in-review</option>
+            <option value="verified">verified</option>
+          </select>
+          <input class="factSourceInput" placeholder="source URL/reference" />
+          <input class="factNoteInput" placeholder="verification note" />
+          <button class="addFact">Add Fact</button>
+        </div>
+        <ul class="factList history"></ul>
         <div class="row">
           <label><input type="checkbox" class="selectProject" /> select</label>
           <button class="loadHistory">Open History</button>

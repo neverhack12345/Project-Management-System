@@ -1,4 +1,4 @@
 # Tasks
 
-- [ ] Create initial backlog
-- [ ] Define first deliverable
+- [ ] Create initial backlog [due:{{today}}]
+- [ ] Define first deliverable [due:{{dueDate}}]

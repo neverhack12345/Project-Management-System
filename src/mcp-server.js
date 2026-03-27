@@ -13,10 +13,15 @@ import {
 import {
   addTask,
   assertVersionToken,
+  createProjectFact,
+  listProjectFacts,
   loadAllProjects,
   loadProject,
+  updateProjectFact,
   updateMilestone,
   updateProjectMeta,
+  updateTaskFactRefs,
+  updateTaskState,
   updateProjectStatus
 } from "./markdown-store.js";
 import {
@@ -61,6 +66,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "list_projects", description: "List all projects", inputSchema: { type: "object", properties: {} } },
     { name: "get_project", description: "Get a project by slug", inputSchema: { type: "object", required: ["slug"], properties: { slug: { type: "string" } } } },
     { name: "get_timeline", description: "Get milestone timeline", inputSchema: { type: "object", properties: {} } },
+    {
+      name: "get_project_facts",
+      description: "Get project fact registry",
+      inputSchema: { type: "object", required: ["slug"], properties: { slug: { type: "string" } } }
+    },
     { name: "get_activity", description: "Get portfolio git activity", inputSchema: { type: "object", properties: { limit: { type: "number" }, skip: { type: "number" } } } },
     { name: "get_health", description: "Get health scores and top risks", inputSchema: { type: "object", properties: {} } },
     { name: "get_dependencies", description: "Get dependency insights", inputSchema: { type: "object", properties: {} } },
@@ -143,8 +153,82 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       description: "Add task to project (side effect, requires versionToken)",
       inputSchema: {
         type: "object",
-        required: ["slug", "task", "versionToken"],
-        properties: { slug: { type: "string" }, task: { type: "string" }, versionToken: { type: "string" } }
+        required: ["slug", "task", "dueDate", "versionToken"],
+        properties: {
+          slug: { type: "string" },
+          task: { type: "string" },
+          dueDate: { type: "string" },
+          dependsOn: { type: "array", items: { type: "string" } },
+          factRefs: { type: "array", items: { type: "string" } },
+          recurrence: { type: "string" },
+          versionToken: { type: "string" }
+        }
+      }
+    },
+    {
+      name: "add_project_fact",
+      description: "Add a project fact (side effect, requires versionToken)",
+      inputSchema: {
+        type: "object",
+        required: ["slug", "statement", "versionToken"],
+        properties: {
+          slug: { type: "string" },
+          factId: { type: "string" },
+          statement: { type: "string" },
+          status: { type: "string" },
+          sources: { type: "array", items: { type: "string" } },
+          verificationNote: { type: "string" },
+          verifiedBy: { type: "string" },
+          verifiedAt: { type: "string" },
+          versionToken: { type: "string" }
+        }
+      }
+    },
+    {
+      name: "update_project_fact",
+      description: "Update a project fact (side effect, requires versionToken)",
+      inputSchema: {
+        type: "object",
+        required: ["slug", "factId", "versionToken"],
+        properties: {
+          slug: { type: "string" },
+          factId: { type: "string" },
+          statement: { type: "string" },
+          status: { type: "string" },
+          sources: { type: "array", items: { type: "string" } },
+          verificationNote: { type: "string" },
+          verifiedBy: { type: "string" },
+          verifiedAt: { type: "string" },
+          versionToken: { type: "string" }
+        }
+      }
+    },
+    {
+      name: "update_task_fact_refs",
+      description: "Update task fact references (side effect, requires versionToken)",
+      inputSchema: {
+        type: "object",
+        required: ["slug", "taskId", "factRefs", "versionToken"],
+        properties: {
+          slug: { type: "string" },
+          taskId: { type: "string" },
+          factRefs: { type: "array", items: { type: "string" } },
+          versionToken: { type: "string" }
+        }
+      }
+    },
+    {
+      name: "move_project_task_lane",
+      description: "Move task across lane states with done-gating (side effect, requires versionToken)",
+      inputSchema: {
+        type: "object",
+        required: ["slug", "taskId", "state", "versionToken"],
+        properties: {
+          slug: { type: "string" },
+          taskId: { type: "string" },
+          state: { type: "string" },
+          versionToken: { type: "string" }
+        }
       }
     },
     {
@@ -206,6 +290,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const projects = await loadAllProjects();
         return contentJson({ events: buildTimeline(projects) });
       }
+      case "get_project_facts":
+        return contentJson({ facts: await listProjectFacts(args.slug) });
       case "get_activity":
         return contentJson(await getPortfolioActivity({ limit: args.limit, skip: args.skip }));
       case "get_health": {
@@ -325,10 +411,39 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return contentJson(await resolveSafePlaybookActions({ dryRun: Boolean(args.dryRun), maxActions: args.maxActions }));
       case "update_project_status":
         await assertVersionToken(args.slug, args.versionToken);
+        if (args.status === "done") {
+          const project = await loadProject(args.slug);
+          if ((project.factsSummary?.unresolved || 0) > 0) {
+            throw new Error("Cannot mark project done while unresolved facts exist.");
+          }
+        }
         return contentJson(await updateProjectStatus(args.slug, args.status));
       case "add_project_task":
         await assertVersionToken(args.slug, args.versionToken);
-        return contentJson(await addTask(args.slug, args.task));
+        return contentJson(
+          await addTask(args.slug, args.task, args.dueDate, args.recurrence || "", args.dependsOn || [], args.factRefs || [])
+        );
+      case "add_project_fact":
+        await assertVersionToken(args.slug, args.versionToken);
+        return contentJson(await createProjectFact(args.slug, args));
+      case "update_project_fact":
+        await assertVersionToken(args.slug, args.versionToken);
+        return contentJson(await updateProjectFact(args.slug, args.factId, args));
+      case "update_task_fact_refs":
+        await assertVersionToken(args.slug, args.versionToken);
+        return contentJson(await updateTaskFactRefs(args.slug, args.taskId, args.factRefs || []));
+      case "move_project_task_lane": {
+        await assertVersionToken(args.slug, args.versionToken);
+        if (String(args.state || "").toLowerCase() === "done") {
+          const project = await loadProject(args.slug);
+          const task = (project.tasks || []).find((item) => item.id === args.taskId);
+          if (!task) throw new Error(`Task not found: ${args.slug}:${args.taskId}`);
+          if ((task.unresolvedFactRefs || []).length > 0) {
+            throw new Error("Cannot move task to done while linked facts are unresolved.");
+          }
+        }
+        return contentJson(await updateTaskState(args.slug, args.taskId, args.state));
+      }
       case "update_project_meta":
         await assertVersionToken(args.slug, args.versionToken);
         return contentJson(

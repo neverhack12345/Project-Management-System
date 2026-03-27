@@ -20,7 +20,7 @@ Guide for human operators using the dashboard at `http://localhost:3000`.
 4. In Projects section:
    - open one card
    - change status to `active` and save
-   - add one quick task
+   - add one quick task with deadline
 5. Use Refresh button to confirm state updates.
 
 ## Daily operator workflow
@@ -48,11 +48,26 @@ Guide for human operators using the dashboard at `http://localhost:3000`.
 - `Save` status:
   - if setting `blocked` or `done`, decision note is required
 - `Add Task`:
+  - requires a deadline (date field)
+  - optional dependencies can be entered as comma-separated task refs (`task-id` or `project-slug:task-id`)
+  - optional fact refs can be entered as comma-separated refs (`fact-id` or `project-slug:fact-id`)
   - supports recurrence: daily/weekly/monthly
 - `Save Meta`:
   - currently saves blocked reason metadata
 - `Open History`:
   - loads latest git commit history for that project
+- Facts tracker:
+  - add fact statement with status/source/verification note
+  - `verified` requires source + verification note
+
+## Task Kanban board
+
+- Lanes: `backlog`, `todo`, `in-progress`, `done`.
+- Drag a task card between lanes to update task state.
+- Lane moves persist to markdown task lines through `[state:<lane>]`.
+- Moving to `done` also marks the checkbox complete.
+- Moving task to `done` is blocked if linked facts are unresolved.
+- Setting project status to `done` is blocked if project still has unresolved facts.
 
 ## Bulk updates
 
@@ -76,8 +91,19 @@ Example payloads:
 
 - quick task:
 ```json
-{"slug":"my-project","task":"Review scope changes","recurrence":"weekly"}
+{"slug":"my-project","task":"Review scope changes","dueDate":"2026-04-10","recurrence":"weekly"}
+{"slug":"my-project","task":"Release checklist","dueDate":"2026-04-12","dependsOn":["t-a1b2c3","t-d4e5f6"]}
+{"slug":"project-b","task":"Integration validation","dueDate":"2026-04-15","dependsOn":["project-a:t-a1b2c3","project-b:t-d4e5f6"]}
+{"slug":"project-b","task":"Finalize launch brief","dueDate":"2026-04-18","factRefs":["project-a:f-market-size","project-b:f-legal-approved"]}
 ```
+
+## Fact verification workflow
+
+1. Add facts from the project card Facts tracker (`statement`, `status`, optional source/note).
+2. Link facts to tasks using `fact refs` when creating tasks (or via API/MCP update endpoints).
+3. Move facts to `verified` only after entering at least one source and a verification note.
+4. Move tasks to `done` only after linked facts are resolved; otherwise the move is blocked.
+5. Move project status to `done` only after unresolved project facts are zero.
 
 - quick project:
 ```json

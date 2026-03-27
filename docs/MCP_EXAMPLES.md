@@ -73,3 +73,39 @@ If conflict occurs (`VERSION_CONFLICT`), re-read project and retry with latest t
 2. Review `results` and `remaining`.
 3. Re-run with `{ "dryRun": false, "maxActions": 20 }`.
 4. Call `get_actionable_playbook` to confirm remaining manual actions.
+
+## 11) Add and verify a project fact
+
+1. Call `get_project` with `slug` and capture `versionToken`.
+2. Call `add_project_fact` with:
+   - `slug`
+   - `statement`
+   - `status`: `"unverified"`
+   - `versionToken`
+3. Call `get_project_facts` and choose a `factId`.
+4. Call `update_project_fact` with:
+   - `slug`
+   - `factId`
+   - `status`: `"verified"`
+   - `sources`: `["https://example.com/source"]`
+   - `verificationNote`: `"Checked against source and confirmed"`
+   - `versionToken`
+
+## 12) Link fact refs to a task
+
+1. Call `get_project` and read `versionToken`.
+2. Call `update_task_fact_refs` with:
+   - `slug`
+   - `taskId`
+   - `factRefs`: `["f-market-size", "other-project:f-legal-approved"]`
+   - `versionToken`
+
+## 13) Move task lanes with verification gating
+
+1. Call `get_project` and read `versionToken`.
+2. Call `move_project_task_lane` with:
+   - `slug`
+   - `taskId`
+   - `state`: `"done"`
+   - `versionToken`
+3. If blocked, verify or relink unresolved facts and retry.

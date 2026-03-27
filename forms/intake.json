@@ -3,7 +3,7 @@
     {
       "id": "quick-task",
       "name": "Quick Task",
-      "fields": ["slug", "task", "recurrence"]
+      "fields": ["slug", "task", "dueDate", "dependsOn", "factRefs", "recurrence"]
     },
     {
       "id": "quick-project",

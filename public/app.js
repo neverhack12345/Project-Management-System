@@ -18,6 +18,7 @@ const digestOverdue = document.getElementById("digestOverdue");
 const digestStale = document.getElementById("digestStale");
 const digestBlocked = document.getElementById("digestBlocked");
 const projectCardTpl = document.getElementById("projectCardTpl");
+const kanbanBoard = document.getElementById("kanbanBoard");
 const calendarEl = document.getElementById("calendar");
 const ganttEl = document.getElementById("gantt");
 const focusBtns = document.querySelectorAll(".focusBtn");
@@ -78,6 +79,10 @@ async function fetchTimeline() {
   const res = await fetch("/api/timeline");
   return res.json();
 }
+async function fetchTaskBoard() {
+  const res = await fetch("/api/tasks/board");
+  return res.json();
+}
 async function fetchHealth() {
   const res = await fetch("/api/health");
   return res.json();
@@ -125,6 +130,12 @@ async function fetchTimeEntries() {
 async function fetchIntakeForms() {
   const res = await fetch("/api/intake/forms");
   return res.json();
+}
+async function fetchProjectFacts(slug) {
+  const res = await fetch(`/api/projects/${slug}/facts`);
+  const data = await res.json();
+  if (!res.ok || data.ok === false) throw new Error(data.error || "Failed to load facts");
+  return data.facts || [];
 }
 async function addTimeEntry(payload) {
   const res = await fetch("/api/time-entries", {
@@ -186,14 +197,14 @@ async function saveStatus(slug, status, decisionNote = "", previousStatus = "") 
   await handleWriteResponse(res);
 }
 
-async function addTask(slug, task, recurrence = "") {
+async function addTask(slug, task, dueDate, recurrence = "", dependsOn = [], factRefs = []) {
   const project = currentProjects.find((item) => item.slug === slug);
   const res = await fetch(`/api/projects/${slug}/tasks`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ task, recurrence, versionToken: project?.versionToken || "" })
+    body: JSON.stringify({ task, dueDate, recurrence, dependsOn, factRefs, versionToken: project?.versionToken || "" })
   });
-  await handleWriteResponse(res);
+  return handleWriteResponse(res);
 }
 
 async function applyBulkUpdates(updates) {
@@ -224,6 +235,33 @@ async function saveProjectMeta(slug, payload) {
   await handleWriteResponse(res);
 }
 
+async function moveTaskLane(projectSlug, taskId, state, versionToken) {
+  const res = await fetch(`/api/projects/${projectSlug}/tasks/${taskId}/state`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ state, versionToken })
+  });
+  await handleWriteResponse(res);
+}
+async function createProjectFact(slug, payload) {
+  const project = currentProjects.find((item) => item.slug === slug);
+  const res = await fetch(`/api/projects/${slug}/facts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, versionToken: project?.versionToken || "" })
+  });
+  return handleWriteResponse(res);
+}
+async function updateProjectFact(slug, factId, payload) {
+  const project = currentProjects.find((item) => item.slug === slug);
+  const res = await fetch(`/api/projects/${slug}/facts/${factId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, versionToken: project?.versionToken || "" })
+  });
+  return handleWriteResponse(res);
+}
+
 async function handleWriteResponse(res) {
   const data = await res.json();
   if (res.status === 409) {
@@ -238,6 +276,7 @@ async function handleWriteResponse(res) {
   } else {
     flash.textContent = "";
   }
+  return data;
 }
 
 let currentProjects = [];
@@ -285,7 +324,8 @@ function renderProjects(projects) {
     if (project.status === "blocked") {
       node.querySelector(".meta").classList.add("meta-blocked");
     }
-    node.querySelector(".action").textContent = `Next: ${project.nextAction || "n/a"} | Recurring tasks: ${project.taskSummary?.recurring || 0}`;
+    node.querySelector(".action").textContent =
+      `Next: ${project.nextAction || "n/a"} | Open: ${project.taskSummary?.open || 0} | Overdue: ${project.taskSummary?.overdue || 0} | Blocked by deps: ${project.taskSummary?.blockedByDependencies || 0} | Unresolved facts: ${project.factsSummary?.unresolved || 0}`;
     const statusSelect = node.querySelector(".statusSelect");
     statusSelect.value = project.status;
     const decisionNoteInput = node.querySelector(".decisionNoteInput");
@@ -302,13 +342,39 @@ function renderProjects(projects) {
       } catch {}
     });
     const taskInput = node.querySelector(".taskInput");
+    const taskDueDate = node.querySelector(".taskDueDate");
+    const taskDeps = node.querySelector(".taskDeps");
+    const taskFacts = node.querySelector(".taskFacts");
     const taskRecur = node.querySelector(".taskRecur");
+    taskDueDate.value = new Date().toISOString().slice(0, 10);
     node.querySelector(".addTask").addEventListener("click", async () => {
       if (!taskInput.value.trim()) return;
+      if (!taskDueDate.value) {
+        flash.textContent = "Task deadline is required.";
+        return;
+      }
+      const dependsOn = taskDeps.value
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean);
+      const factRefs = taskFacts.value
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean);
       try {
-        await addTask(project.slug, taskInput.value.trim(), taskRecur.value);
+        const result = await addTask(
+          project.slug,
+          taskInput.value.trim(),
+          taskDueDate.value,
+          taskRecur.value,
+          dependsOn,
+          factRefs
+        );
+        if (result?.taskId) flash.textContent = `Task created: ${result.taskId}`;
         taskInput.value = "";
-        taskRecur.value = "";
+        taskDueDate.value = new Date().toISOString().slice(0, 10);
+        taskDeps.value = "";
+        taskFacts.value = "";
         await refresh();
       } catch {}
     });
@@ -320,6 +386,76 @@ function renderProjects(projects) {
         await refresh();
       } catch {}
     });
+    const factStatementInput = node.querySelector(".factStatementInput");
+    const factStatusSelect = node.querySelector(".factStatusSelect");
+    const factSourceInput = node.querySelector(".factSourceInput");
+    const factNoteInput = node.querySelector(".factNoteInput");
+    const factList = node.querySelector(".factList");
+    async function loadFacts() {
+      factList.innerHTML = "";
+      try {
+        const facts = await fetchProjectFacts(project.slug);
+        if (!facts.length) {
+          factList.innerHTML = "<li>No facts yet.</li>";
+          return;
+        }
+        for (const fact of facts.slice(0, 8)) {
+          const li = document.createElement("li");
+          li.textContent = `${fact.factId} [${fact.status}] ${fact.statement}`;
+          const status = document.createElement("select");
+          for (const value of ["unknown", "unverified", "in-review", "verified"]) {
+            const opt = document.createElement("option");
+            opt.value = value;
+            opt.textContent = value;
+            status.appendChild(opt);
+          }
+          status.value = fact.status || "unknown";
+          status.addEventListener("change", async () => {
+            try {
+              await updateProjectFact(project.slug, fact.factId, {
+                status: status.value,
+                sources: fact.sources || [],
+                verificationNote: fact.verificationNote || ""
+              });
+              await refresh();
+            } catch (error) {
+              flash.textContent = error.message;
+            }
+          });
+          li.appendChild(document.createTextNode(" "));
+          li.appendChild(status);
+          factList.appendChild(li);
+        }
+      } catch (error) {
+        factList.innerHTML = `<li>${error.message}</li>`;
+      }
+    }
+    node.querySelector(".addFact").addEventListener("click", async () => {
+      const statement = factStatementInput.value.trim();
+      if (!statement) return;
+      const status = factStatusSelect.value;
+      const source = factSourceInput.value.trim();
+      const verificationNote = factNoteInput.value.trim();
+      if (status === "verified" && (!source || !verificationNote)) {
+        flash.textContent = "Verified facts require source and verification note.";
+        return;
+      }
+      try {
+        await createProjectFact(project.slug, {
+          statement,
+          status,
+          sources: source ? [source] : [],
+          verificationNote
+        });
+        factStatementInput.value = "";
+        factSourceInput.value = "";
+        factNoteInput.value = "";
+        await refresh();
+      } catch (error) {
+        flash.textContent = error.message;
+      }
+    });
+    loadFacts().catch(() => {});
 
     const selectBox = node.querySelector(".selectProject");
     selectBox.checked = selectedProjects.has(project.slug);
@@ -348,6 +484,58 @@ function renderProjects(projects) {
       }
     });
     projectList.appendChild(node);
+  }
+}
+
+function renderKanban(data) {
+  if (!kanbanBoard) return;
+  const lanes = data?.lanes || {};
+  const laneOrder = ["backlog", "todo", "in-progress", "done"];
+  kanbanBoard.innerHTML = "";
+  for (const laneId of laneOrder) {
+    const laneEl = document.createElement("div");
+    laneEl.className = "kanban-lane";
+    laneEl.dataset.lane = laneId;
+    laneEl.innerHTML = `<h3>${laneId}</h3>`;
+    laneEl.addEventListener("dragover", (event) => event.preventDefault());
+    laneEl.addEventListener("drop", async (event) => {
+      event.preventDefault();
+      const raw = event.dataTransfer?.getData("application/json");
+      if (!raw) return;
+      try {
+        const payload = JSON.parse(raw);
+        await moveTaskLane(payload.projectSlug, payload.taskId, laneId, payload.versionToken);
+        await refresh();
+      } catch (error) {
+        flash.textContent = error.message;
+      }
+    });
+    for (const task of lanes[laneId] || []) {
+      const card = document.createElement("article");
+      card.className = "kanban-task";
+      card.draggable = true;
+      card.addEventListener("dragstart", (event) => {
+        event.dataTransfer?.setData(
+          "application/json",
+          JSON.stringify({
+            projectSlug: task.projectSlug,
+            taskId: task.id,
+            versionToken: task.versionToken
+          })
+        );
+      });
+      const deps = (task.dependsOn || []).slice(0, 2).join(", ");
+      const unresolved = (task.unresolvedFactRefs || []).length;
+      card.innerHTML = `
+        <div class="kanban-title">${task.title}</div>
+        <div class="kanban-meta">${task.projectSlug}:${task.id}</div>
+        <div class="kanban-meta">due: ${task.dueDate || "n/a"}</div>
+        <div class="kanban-meta">${deps ? `deps: ${deps}` : "deps: none"}</div>
+        <div class="kanban-meta ${unresolved ? "warn" : ""}">unresolved facts: ${unresolved}</div>
+      `;
+      laneEl.appendChild(card);
+    }
+    kanbanBoard.appendChild(laneEl);
   }
 }
 
@@ -500,6 +688,11 @@ function renderDependencies(data) {
   dependencyList.innerHTML = "";
   const invalid = data.invalidRefs || [];
   const keys = Object.keys(data.blockedBy || {});
+  const invalidTaskRefs = data.invalidTaskRefs || [];
+  const taskBlockedKeys = Object.keys(data.taskBlockedBy || {});
+  const crossTaskEdges = data.crossProjectTaskEdges || [];
+  const tasksByProject = Object.entries(data.tasksByProject || {});
+  const verificationByProject = Object.entries(data.verificationByProject || {});
   const li1 = document.createElement("li");
   li1.textContent = `Dependency edges: ${(data.edges || []).length}`;
   dependencyList.appendChild(li1);
@@ -509,15 +702,45 @@ function renderDependencies(data) {
   const li3 = document.createElement("li");
   li3.textContent = `Invalid refs: ${invalid.length}`;
   dependencyList.appendChild(li3);
+  const li4 = document.createElement("li");
+  li4.textContent = `Task dependency edges: ${(data.taskEdges || []).length}`;
+  dependencyList.appendChild(li4);
+  const li5 = document.createElement("li");
+  li5.textContent = `Cross-project task dependencies: ${crossTaskEdges.length}`;
+  dependencyList.appendChild(li5);
+  const li6 = document.createElement("li");
+  li6.textContent = `Invalid task refs: ${invalidTaskRefs.length}`;
+  dependencyList.appendChild(li6);
   for (const key of keys.slice(0, 5)) {
     const deps = (data.blockedBy?.[key] || []).slice(0, 3);
     const li = document.createElement("li");
     li.textContent = `${key} blocked by ${deps.join(", ") || "n/a"}`;
     dependencyList.appendChild(li);
   }
+  for (const key of taskBlockedKeys.slice(0, 5)) {
+    const deps = (data.taskBlockedBy?.[key] || []).slice(0, 3);
+    const li = document.createElement("li");
+    li.textContent = `Task ${key} blocked by ${deps.join(", ") || "n/a"}`;
+    dependencyList.appendChild(li);
+  }
+  for (const [slug, summary] of tasksByProject.slice(0, 5)) {
+    const li = document.createElement("li");
+    li.textContent = `${slug} tasks: total=${summary.total}, open=${summary.open}, blockedByDeps=${summary.blockedByDependencies}`;
+    dependencyList.appendChild(li);
+  }
+  for (const [slug, summary] of verificationByProject.slice(0, 5)) {
+    const li = document.createElement("li");
+    li.textContent = `${slug} facts: verified=${summary.verifiedFacts}/${summary.totalFacts}, unresolved=${summary.unresolvedFacts}`;
+    dependencyList.appendChild(li);
+  }
   for (const entry of invalid.slice(0, 3)) {
     const li = document.createElement("li");
     li.textContent = `Repair ${entry.from}: missing ${entry.missing}`;
+    dependencyList.appendChild(li);
+  }
+  for (const entry of invalidTaskRefs.slice(0, 3)) {
+    const li = document.createElement("li");
+    li.textContent = `Repair task ${entry.from}: missing ${entry.missing}`;
     dependencyList.appendChild(li);
   }
 }
@@ -609,9 +832,10 @@ function renderAutomationRuns(data) {
 }
 
 async function refresh() {
-  const [projectsRes, timelineRes, healthRes, alertsRes, actionQueueRes, activityRes, dependenciesRes, portfolioRes, todayBriefRes, trendsRes, opsStateRes, capacityRes, timeEntriesRes, intakeFormsRes, automationRunsRes] =
+  const [projectsRes, boardRes, timelineRes, healthRes, alertsRes, actionQueueRes, activityRes, dependenciesRes, portfolioRes, todayBriefRes, trendsRes, opsStateRes, capacityRes, timeEntriesRes, intakeFormsRes, automationRunsRes] =
     await Promise.all([
       fetchProjects(),
+      fetchTaskBoard(),
       fetchTimeline(),
       fetchHealth(),
       fetchAlerts(),
@@ -628,6 +852,7 @@ async function refresh() {
       fetchAutomationRuns()
     ]);
   renderProjects(projectsRes.projects || []);
+  renderKanban(boardRes);
   renderCalendar(timelineRes.events || []);
   renderGantt(timelineRes.events || []);
   renderHealth(healthRes);

@@ -27,6 +27,7 @@ Command:
   - `get_actionable_playbook`, `list_incoming_events`
 - Write/update:
   - `update_project_status`, `add_project_task`, `update_project_meta`, `update_milestone`
+  - `get_project_facts`, `add_project_fact`, `update_project_fact`, `update_task_fact_refs`, `move_project_task_lane`
   - `run_playbook_action` (safe actions only, requires `versionToken` when executing)
 - Intake automation:
   - `enqueue_incoming_event` (queue incoming work)
@@ -92,6 +93,22 @@ Command:
   2. `process_incoming_events` with `dryRun: true`
   3. re-run with `dryRun: false`
   4. inspect results using `list_incoming_events`
+
+- Fact verification workflow:
+  1. `get_project` to read `versionToken`
+  2. `add_project_fact` (or `update_project_fact`) with `sources` + `verificationNote` when status is `verified`
+  3. `update_task_fact_refs` to link facts to a task
+  4. `move_project_task_lane` to move task across Kanban lanes
+  5. if moving to `done` fails, resolve linked facts first, then retry
+
+## Fact verification constraints
+
+- Fact status enum: `unknown`, `unverified`, `in-review`, `verified`.
+- `verified` requires:
+  - at least one `sources` entry
+  - non-empty `verificationNote`
+- `move_project_task_lane` to `done` is blocked if linked fact refs are unresolved.
+- `update_project_status` to `done` is blocked if project has unresolved facts.
 
 ## Ops state visibility
 

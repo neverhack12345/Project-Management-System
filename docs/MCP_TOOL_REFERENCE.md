@@ -22,6 +22,7 @@ Authoritative reference for tools/resources exposed by `src/mcp-server.js`.
 - `list_projects()`
 - `get_project({ slug })`
 - `get_timeline()`
+- `get_project_facts({ slug })`
 - `get_activity({ limit?, skip? })`
 - `get_health()`
 - `get_dependencies()`
@@ -47,7 +48,14 @@ Authoritative reference for tools/resources exposed by `src/mcp-server.js`.
 ## Write/update tools
 
 - `update_project_status({ slug, status, versionToken })`
-- `add_project_task({ slug, task, versionToken })`
+- `add_project_task({ slug, task, dueDate, dependsOn?, factRefs?, recurrence?, versionToken })`
+  - `dependsOn` supports `["task-id"]` (same project) and `["other-project:task-id"]` (cross-project)
+  - `factRefs` supports `["fact-id"]` and `["other-project:fact-id"]`
+- `add_project_fact({ slug, statement, status?, sources?, verificationNote?, verifiedBy?, verifiedAt?, versionToken })`
+- `update_project_fact({ slug, factId, statement?, status?, sources?, verificationNote?, verifiedBy?, verifiedAt?, versionToken })`
+- `update_task_fact_refs({ slug, taskId, factRefs, versionToken })`
+- `move_project_task_lane({ slug, taskId, state, versionToken })`
+  - moving to `done` is rejected when linked fact refs are unresolved.
 - `update_project_meta({ slug, blockedReason?, nextAction?, priority?, versionToken })`
 - `update_milestone({ slug, milestoneId, name?, status?, startDate?, dueDate?, versionToken })`
 

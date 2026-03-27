@@ -159,3 +159,43 @@ input[type="checkbox"] {
   border-radius: 8px;
   background: #4f8cff;
 }
+
+.kanban-board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  gap: 10px;
+}
+.kanban-lane {
+  border: 1px solid #333b52;
+  border-radius: 10px;
+  background: #141927;
+  min-height: 200px;
+  padding: 8px;
+}
+.kanban-lane h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  text-transform: capitalize;
+}
+.kanban-task {
+  border: 1px solid #333b52;
+  border-radius: 8px;
+  background: #1b2030;
+  padding: 8px;
+  margin-bottom: 8px;
+  cursor: grab;
+}
+.kanban-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.kanban-meta {
+  font-size: 11px;
+  opacity: 0.85;
+}
+.kanban-meta.warn {
+  color: #ffb86b;
+  opacity: 1;
+  font-weight: 600;
+}

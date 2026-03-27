@@ -26,6 +26,12 @@ function dueDaysForUrgency(urgency) {
   return 14;
 }
 
+function toIsoDateAfterDays(days) {
+  const today = new Date();
+  const due = new Date(today.getTime() + Math.max(1, Number(days) || 1) * 24 * 60 * 60 * 1000);
+  return due.toISOString().slice(0, 10);
+}
+
 function inferEventType(event) {
   const explicit = String(event.kind || event.type || "").toLowerCase();
   if (explicit === "task" || explicit === "project") return explicit;
@@ -121,8 +127,9 @@ export async function submitIntakeForm({ formId, payload = {} }) {
   if (formId === "quick-task") {
     const slug = String(payload.slug || "");
     const task = String(payload.task || "").trim();
-    if (!slug || !task) throw new Error("quick-task requires slug and task");
-    await addTask(slug, task, payload.recurrence || "");
+    const dueDate = String(payload.dueDate || "").trim();
+    if (!slug || !task || !dueDate) throw new Error("quick-task requires slug, task, and dueDate");
+    await addTask(slug, task, dueDate, payload.recurrence || "", payload.dependsOn || [], payload.factRefs || []);
     if (payload.priority || payload.nextAction || payload.blockedReason) {
       await updateProjectMeta(slug, {
         priority: payload.priority,
@@ -196,7 +203,9 @@ export async function processIncomingEvents({ dryRun = false, maxEvents = 25 } =
         const payload = {
           slug,
           task: event.description ? `${event.title}: ${event.description}` : event.title,
+          dueDate: toIsoDateAfterDays(event.dueDays),
           recurrence: event.recurrence,
+          dependsOn: [],
           priority
         };
         resolution = dryRun ? { type: "task", slug, dryRun: true } : await submitIntakeForm({ formId: "quick-task", payload });

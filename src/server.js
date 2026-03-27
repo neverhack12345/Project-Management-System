@@ -12,9 +12,16 @@ import { enqueueIncomingEvent, listIncomingEvents, processIncomingEvents, submit
 import {
   addTask,
   assertVersionToken,
+  createProjectFact,
   ensureProjectsDir,
+  isIsoDate,
   loadAllProjects,
+  loadProject,
+  listProjectFacts,
+  updateProjectFact,
   updateProjectMeta,
+  updateTaskFactRefs,
+  updateTaskState,
   updateMilestone,
   updateProjectStatus
 } from "./markdown-store.js";
@@ -154,6 +161,32 @@ async function createApp() {
   app.get("/api/dependencies", async (_req, res) => {
     const projects = await loadAllProjects();
     res.json({ ok: true, ...buildDependencyInsights(projects) });
+  });
+
+  app.get("/api/tasks/board", async (_req, res) => {
+    const projects = await loadAllProjects();
+    const lanes = { backlog: [], todo: [], "in-progress": [], done: [] };
+    for (const project of projects) {
+      for (const task of project.tasks || []) {
+        const lane = task.state || (task.done ? "done" : "todo");
+        if (!lanes[lane]) continue;
+        lanes[lane].push({
+          id: task.id,
+          ref: task.ref,
+          title: task.title,
+          projectSlug: project.slug,
+          projectName: project.name,
+          dueDate: task.dueDate,
+          dependsOn: task.dependsOn || [],
+          unresolvedFactRefs: task.unresolvedFactRefs || [],
+          versionToken: project.versionToken
+        });
+      }
+    }
+    for (const lane of Object.values(lanes)) {
+      lane.sort((a, b) => (a.dueDate || "9999-99-99").localeCompare(b.dueDate || "9999-99-99"));
+    }
+    res.json({ ok: true, lanes });
   });
 
   app.get("/api/health", async (_req, res) => {
@@ -487,6 +520,12 @@ async function createApp() {
   app.patch("/api/projects/:slug/status", async (req, res) => {
     try {
       await assertVersionToken(req.params.slug, req.body.versionToken);
+      if (req.body.status === "done") {
+        const project = await loadProject(req.params.slug);
+        if ((project.factsSummary?.unresolved || 0) > 0) {
+          throw new Error("Cannot mark project done while unresolved facts exist.");
+        }
+      }
       const result = await updateProjectStatus(req.params.slug, req.body.status);
       if (typeof req.body.decisionNote === "string" && req.body.decisionNote.trim()) {
         await appendDecisionLog({
@@ -517,14 +556,24 @@ async function createApp() {
       if (!req.body.task || typeof req.body.task !== "string") {
         throw new Error("task is required");
       }
+      if (!isIsoDate(String(req.body.dueDate || ""))) {
+        throw new Error("dueDate is required and must be ISO YYYY-MM-DD");
+      }
       await assertVersionToken(req.params.slug, req.body.versionToken);
-      const result = await addTask(req.params.slug, req.body.task.trim(), req.body.recurrence || "");
+      const result = await addTask(
+        req.params.slug,
+        req.body.task.trim(),
+        req.body.dueDate,
+        req.body.recurrence || "",
+        req.body.dependsOn || [],
+        req.body.factRefs || []
+      );
       const commit = await maybeAutoCommit({
         slug: req.params.slug,
-        message: `project(${req.params.slug}): add task${req.body.recurrence ? ` (${req.body.recurrence})` : ""}`,
+        message: `project(${req.params.slug}): add task ${result.taskId} due ${req.body.dueDate}${req.body.recurrence ? ` (${req.body.recurrence})` : ""}`,
         files: [result.updatedFile]
       });
-      res.json({ ok: true, commit });
+      res.json({ ok: true, taskId: result.taskId, commit });
     } catch (error) {
       if (error.code === "VERSION_CONFLICT" || error.code === "TOKEN_REQUIRED") {
         res.status(409).json({ ok: false, error: error.message, currentToken: error.currentToken });
@@ -602,6 +651,99 @@ async function createApp() {
       const commit = await maybeAutoCommit({
         slug: req.params.slug,
         message: `project(${req.params.slug}): update project metadata`,
+        files: [result.updatedFile]
+      });
+      res.json({ ok: true, commit });
+    } catch (error) {
+      if (error.code === "VERSION_CONFLICT" || error.code === "TOKEN_REQUIRED") {
+        res.status(409).json({ ok: false, error: error.message, currentToken: error.currentToken });
+        return;
+      }
+      res.status(400).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.patch("/api/projects/:slug/tasks/:taskId/state", async (req, res) => {
+    try {
+      await assertVersionToken(req.params.slug, req.body.versionToken);
+      if (String(req.body.state || "").toLowerCase() === "done") {
+        const project = await loadProject(req.params.slug);
+        const task = (project.tasks || []).find((item) => item.id === req.params.taskId);
+        if (!task) throw new Error(`Task not found: ${req.params.slug}:${req.params.taskId}`);
+        if ((task.unresolvedFactRefs || []).length > 0) {
+          throw new Error("Cannot move task to done while linked facts are unresolved.");
+        }
+      }
+      const result = await updateTaskState(req.params.slug, req.params.taskId, req.body.state);
+      const commit = await maybeAutoCommit({
+        slug: req.params.slug,
+        message: `project(${req.params.slug}): move task ${req.params.taskId} to ${req.body.state}`,
+        files: [result.updatedFile]
+      });
+      res.json({ ok: true, commit });
+    } catch (error) {
+      if (error.code === "VERSION_CONFLICT" || error.code === "TOKEN_REQUIRED") {
+        res.status(409).json({ ok: false, error: error.message, currentToken: error.currentToken });
+        return;
+      }
+      res.status(400).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.get("/api/projects/:slug/facts", async (req, res) => {
+    try {
+      const facts = await listProjectFacts(req.params.slug);
+      res.json({ ok: true, facts });
+    } catch (error) {
+      res.status(400).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post("/api/projects/:slug/facts", async (req, res) => {
+    try {
+      await assertVersionToken(req.params.slug, req.body.versionToken);
+      const result = await createProjectFact(req.params.slug, req.body || {});
+      const commit = await maybeAutoCommit({
+        slug: req.params.slug,
+        message: `project(${req.params.slug}): add fact ${result.fact.factId}`,
+        files: [result.updatedFile]
+      });
+      res.json({ ok: true, fact: result.fact, commit });
+    } catch (error) {
+      if (error.code === "VERSION_CONFLICT" || error.code === "TOKEN_REQUIRED") {
+        res.status(409).json({ ok: false, error: error.message, currentToken: error.currentToken });
+        return;
+      }
+      res.status(400).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.patch("/api/projects/:slug/facts/:factId", async (req, res) => {
+    try {
+      await assertVersionToken(req.params.slug, req.body.versionToken);
+      const result = await updateProjectFact(req.params.slug, req.params.factId, req.body || {});
+      const commit = await maybeAutoCommit({
+        slug: req.params.slug,
+        message: `project(${req.params.slug}): update fact ${req.params.factId}`,
+        files: [result.updatedFile]
+      });
+      res.json({ ok: true, fact: result.fact, commit });
+    } catch (error) {
+      if (error.code === "VERSION_CONFLICT" || error.code === "TOKEN_REQUIRED") {
+        res.status(409).json({ ok: false, error: error.message, currentToken: error.currentToken });
+        return;
+      }
+      res.status(400).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.patch("/api/projects/:slug/tasks/:taskId/facts", async (req, res) => {
+    try {
+      await assertVersionToken(req.params.slug, req.body.versionToken);
+      const result = await updateTaskFactRefs(req.params.slug, req.params.taskId, req.body.factRefs || []);
+      const commit = await maybeAutoCommit({
+        slug: req.params.slug,
+        message: `project(${req.params.slug}): update task ${req.params.taskId} fact refs`,
         files: [result.updatedFile]
       });
       res.json({ ok: true, commit });
