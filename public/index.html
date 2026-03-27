@@ -12,60 +12,113 @@
       <p>Projects, milestones, calendar, and gantt from markdown files.</p>
     </header>
 
-    <section class="controls">
-      <input id="search" placeholder="Search projects..." />
-      <button id="commandPaletteBtn" title="Ctrl/Cmd+K">Command Palette</button>
-      <select id="statusFilter">
-        <option value="">All statuses</option>
-        <option value="idea">idea</option>
-        <option value="planning">planning</option>
-        <option value="active">active</option>
-        <option value="blocked">blocked</option>
-        <option value="done">done</option>
-      </select>
-      <select id="priorityFilter">
-        <option value="">All priorities</option>
-        <option value="low">low</option>
-        <option value="medium">medium</option>
-        <option value="high">high</option>
-      </select>
-      <label><input type="checkbox" id="overdueFilter" /> Overdue only</label>
-      <button id="saveViewBtn">Save View</button>
-      <select id="savedViews"></select>
-      <button id="deleteViewBtn">Delete View</button>
-      <button id="refreshBtn">Refresh</button>
-    </section>
-    <section class="controls">
-      <label><input type="checkbox" id="selectAllProjects" /> Select all visible</label>
-      <select id="bulkStatus">
-        <option value="">Bulk status...</option>
-        <option value="idea">idea</option>
-        <option value="planning">planning</option>
-        <option value="active">active</option>
-        <option value="blocked">blocked</option>
-        <option value="done">done</option>
-      </select>
-      <select id="bulkPriority">
-        <option value="">Bulk priority...</option>
-        <option value="low">low</option>
-        <option value="medium">medium</option>
-        <option value="high">high</option>
-      </select>
-      <button id="applyBulkBtn">Apply Bulk</button>
-      <label>Quiet hours <input id="quietHours" placeholder="22-07" style="width:70px" /></label>
-      <label><input type="checkbox" id="digestOverdue" checked /> overdue</label>
-      <label><input type="checkbox" id="digestStale" checked /> stale</label>
-      <label><input type="checkbox" id="digestBlocked" checked /> blocked</label>
-    </section>
-    <section class="controls">
-      <button class="focusBtn" data-focus="DueSoon">DueSoon</button>
-      <button class="focusBtn" data-focus="Blocked">Blocked</button>
-      <button class="focusBtn" data-focus="Overdue">Overdue</button>
-      <button class="focusBtn" data-focus="NeedsUpdate">NeedsUpdate</button>
-      <span id="flash"></span>
+    <section class="controls controls-grid">
+      <div class="control-group">
+        <label class="field field-full">
+          <span>Search projects</span>
+          <input id="search" placeholder="Search projects..." title="Search projects by name or slug" />
+        </label>
+        <label class="field">
+          <span>Status</span>
+          <select id="statusFilter">
+            <option value="">All statuses</option>
+            <option value="idea">idea</option>
+            <option value="planning">planning</option>
+            <option value="active">active</option>
+            <option value="blocked">blocked</option>
+            <option value="done">done</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Priority</span>
+          <select id="priorityFilter">
+            <option value="">All priorities</option>
+            <option value="low">low</option>
+            <option value="medium">medium</option>
+            <option value="high">high</option>
+          </select>
+        </label>
+        <div class="field field-check">
+          <span>Filters</span>
+          <label><input type="checkbox" id="overdueFilter" /> Overdue only</label>
+        </div>
+        <div class="field actions-inline">
+          <span>Views</span>
+          <div class="row">
+            <button id="saveViewBtn">Save View</button>
+            <select id="savedViews"></select>
+            <button id="deleteViewBtn">Delete View</button>
+            <button id="refreshBtn">Refresh</button>
+            <button id="commandPaletteBtn" title="Ctrl/Cmd+K">Command Palette</button>
+          </div>
+        </div>
+      </div>
+      <div class="control-group">
+        <div class="field field-check">
+          <span>Bulk selection</span>
+          <label><input type="checkbox" id="selectAllProjects" /> Select all visible</label>
+        </div>
+        <label class="field">
+          <span>Bulk status</span>
+          <select id="bulkStatus">
+            <option value="">Bulk status...</option>
+            <option value="idea">idea</option>
+            <option value="planning">planning</option>
+            <option value="active">active</option>
+            <option value="blocked">blocked</option>
+            <option value="done">done</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Bulk priority</span>
+          <select id="bulkPriority">
+            <option value="">Bulk priority...</option>
+            <option value="low">low</option>
+            <option value="medium">medium</option>
+            <option value="high">high</option>
+          </select>
+        </label>
+        <div class="field">
+          <span>Apply</span>
+          <div class="row">
+            <button id="applyBulkBtn">Apply Bulk</button>
+          </div>
+        </div>
+        <label class="field">
+          <span>Quiet hours</span>
+          <input id="quietHours" placeholder="22-07" />
+        </label>
+        <div class="field field-check">
+          <span>Digest</span>
+          <label><input type="checkbox" id="digestOverdue" checked /> overdue</label>
+          <label><input type="checkbox" id="digestStale" checked /> stale</label>
+          <label><input type="checkbox" id="digestBlocked" checked /> blocked</label>
+        </div>
+      </div>
+      <div class="control-group control-group-focus">
+        <div class="field">
+          <span>Focus filters</span>
+          <div class="row">
+            <button class="focusBtn" data-focus="DueSoon">DueSoon</button>
+            <button class="focusBtn" data-focus="Blocked">Blocked</button>
+            <button class="focusBtn" data-focus="Overdue">Overdue</button>
+            <button class="focusBtn" data-focus="NeedsUpdate">NeedsUpdate</button>
+          </div>
+        </div>
+        <span id="flash"></span>
+      </div>
     </section>
 
     <main>
+      <section class="tabs" aria-label="Dashboard tabs">
+        <div class="tab-list" role="tablist">
+          <button class="tab-btn active" id="tabBtnOverview" role="tab" aria-selected="true" aria-controls="tabOverview" data-tab="overview">Overview</button>
+          <button class="tab-btn" id="tabBtnProjects" role="tab" aria-selected="false" aria-controls="tabProjects" data-tab="projects">Projects</button>
+          <button class="tab-btn" id="tabBtnTimeline" role="tab" aria-selected="false" aria-controls="tabTimeline" data-tab="timeline">Timeline</button>
+          <button class="tab-btn" id="tabBtnOperations" role="tab" aria-selected="false" aria-controls="tabOperations" data-tab="operations">Operations</button>
+        </div>
+      </section>
+
       <section id="historyDrawer" class="drawer hidden">
         <div class="drawer-head">
           <h2 id="historyTitle">Project History</h2>
@@ -74,103 +127,273 @@
         <ul id="historyList" class="history"></ul>
       </section>
 
-      <section class="cards">
-        <article class="card">
-          <h2>Auto Ops Status</h2>
-          <ul id="opsStateList" class="history"></ul>
-        </article>
-        <article class="card">
-          <h2>Today Brief</h2>
-          <ul id="todayBriefList" class="history"></ul>
-        </article>
-        <article class="card">
-          <h2>Top 5 At Risk</h2>
-          <ul id="healthList" class="history"></ul>
-        </article>
-        <article class="card">
-          <h2>Alerts</h2>
-          <ul id="alertsList" class="history"></ul>
-        </article>
-        <article class="card">
-          <h2>Action Queue</h2>
-          <ul id="actionQueueList" class="history"></ul>
-        </article>
-        <article class="card">
-          <h2>Portfolio Activity</h2>
-          <ul id="activityList" class="history"></ul>
-        </article>
+      <section id="tabOverview" class="tab-panel active" role="tabpanel" aria-labelledby="tabBtnOverview">
+        <section class="cards">
+          <article class="card">
+            <h2>Auto Ops Status</h2>
+            <ul id="opsStateList" class="history"></ul>
+          </article>
+          <article class="card">
+            <h2>Today Brief</h2>
+            <ul id="todayBriefList" class="history"></ul>
+          </article>
+          <article class="card">
+            <h2>Top 5 At Risk</h2>
+            <ul id="healthList" class="history"></ul>
+          </article>
+          <article class="card">
+            <h2>Alerts</h2>
+            <ul id="alertsList" class="history"></ul>
+          </article>
+          <article class="card">
+            <h2>Action Queue</h2>
+            <ul id="actionQueueList" class="history"></ul>
+          </article>
+          <article class="card">
+            <h2>Portfolio Activity</h2>
+            <ul id="activityList" class="history"></ul>
+          </article>
+          <article class="card">
+            <h2>Portfolio Summary</h2>
+            <ul id="portfolioList" class="history"></ul>
+          </article>
+          <article class="card">
+            <h2>7-Day Trends</h2>
+            <ul id="trendsList" class="history"></ul>
+          </article>
+        </section>
       </section>
 
-      <section class="cards">
-        <article class="card">
-          <h2>Dependency Insights</h2>
-          <ul id="dependencyList" class="history"></ul>
-        </article>
-        <article class="card">
-          <h2>Portfolio Summary</h2>
-          <ul id="portfolioList" class="history"></ul>
-        </article>
-        <article class="card">
-          <h2>7-Day Trends</h2>
-          <ul id="trendsList" class="history"></ul>
-        </article>
-        <article class="card">
-          <h2>Capacity (7d)</h2>
-          <ul id="capacityList" class="history"></ul>
-        </article>
-        <article class="card">
-          <h2>Time Entries</h2>
-          <div class="row">
-            <input id="timeSlug" placeholder="project slug" />
-            <input id="timeMinutes" placeholder="minutes" />
-            <input id="timeNote" placeholder="note" />
-            <button id="addTimeEntryBtn">Log</button>
-          </div>
-          <ul id="timeEntriesList" class="history"></ul>
-        </article>
-        <article class="card">
-          <h2>Intake Forms</h2>
-          <div class="row">
-            <select id="intakeFormSelect"></select>
-            <input id="intakePayload" placeholder='JSON payload, e.g. {"slug":"sample","task":"Review","dueDate":"2026-04-10"}' />
-            <button id="submitIntakeBtn">Submit</button>
-          </div>
-          <ul id="intakeList" class="history"></ul>
-        </article>
-        <article class="card">
-          <h2>Automation Rules</h2>
-          <div class="row">
-            <button id="runAutomationDryBtn">Run Dry</button>
-            <button id="runAutomationBtn">Run</button>
-            <button id="exportSnapshotBtn">Export Snapshot</button>
-          </div>
-          <ul id="automationList" class="history"></ul>
-          <div class="row">
-            <input id="migrationInput" placeholder='Migration JSON array, e.g. [{"title":"X","state":"todo"}]' />
-            <button id="previewMigrationBtn">Preview Migration</button>
-          </div>
-          <ul id="migrationList" class="history"></ul>
-        </article>
+      <section id="tabProjects" class="tab-panel" role="tabpanel" aria-labelledby="tabBtnProjects" hidden>
+        <section class="cards">
+          <article class="card">
+            <h2>Add Project</h2>
+            <p class="helper-text">Create a new project folder from the template.</p>
+            <div class="form-grid">
+              <label class="field">
+                <span>Project name</span>
+                <input id="newProjectName" placeholder="Example: Q2 Release Planning" title="Use a clear project name, e.g. Q2 Release Planning" />
+              </label>
+              <label class="field">
+                <span>Owner</span>
+                <input id="newProjectOwner" placeholder="you" />
+              </label>
+              <label class="field">
+                <span>Due in days</span>
+                <input id="newProjectDueDays" type="number" min="1" placeholder="30" />
+              </label>
+              <label class="field">
+                <span>Estimate hours</span>
+                <input id="newProjectEstimateHours" type="number" min="0" step="1" placeholder="12" />
+              </label>
+              <label class="field field-full">
+                <span>Next action</span>
+                <input id="newProjectNextAction" placeholder="Define next action" title="Example: Define milestone 1 and assign owner" />
+              </label>
+              <label class="field">
+                <span>Priority (optional)</span>
+                <select id="newProjectPriority">
+                  <option value="">default (medium)</option>
+                  <option value="low">low</option>
+                  <option value="medium">medium</option>
+                  <option value="high">high</option>
+                  <option value="critical">critical</option>
+                </select>
+              </label>
+            </div>
+            <div class="row">
+              <button id="createProjectBtn">Create Project</button>
+            </div>
+          </article>
+          <article class="card">
+            <h2>Add Task</h2>
+            <p class="helper-text">Add a task to any project from one place.</p>
+            <div class="form-grid">
+              <label class="field">
+                <span>Project slug</span>
+                <select id="newTaskSlug"></select>
+              </label>
+              <label class="field">
+                <span>Due date</span>
+                <input id="newTaskDueDate" type="date" />
+              </label>
+              <label class="field field-full">
+                <span>Task title</span>
+                <input id="newTaskTitle" placeholder="Review scope changes" title="Example: Review scope changes with team" />
+              </label>
+              <label class="field">
+                <span>Recurrence (optional)</span>
+                <select id="newTaskRecurrence">
+                  <option value="">none</option>
+                  <option value="daily">daily</option>
+                  <option value="weekly">weekly</option>
+                  <option value="monthly">monthly</option>
+                </select>
+              </label>
+              <label class="field field-full">
+                <span>Depends on (optional)</span>
+                <select id="newTaskDependsOn" multiple size="4"></select>
+              </label>
+              <label class="field field-full">
+                <span>Fact refs (optional)</span>
+                <select id="newTaskFactRefs" multiple size="4"></select>
+              </label>
+            </div>
+            <div class="row">
+              <button id="createTaskBtn">Add Task</button>
+            </div>
+          </article>
+        </section>
+        <section>
+          <h2>Task Kanban</h2>
+          <div id="kanbanBoard" class="kanban-board"></div>
+        </section>
+        <section>
+          <h2>Projects</h2>
+          <div id="projectList" class="cards"></div>
+        </section>
       </section>
 
-      <section>
-        <h2>Task Kanban</h2>
-        <div id="kanbanBoard" class="kanban-board"></div>
+      <section id="tabTimeline" class="tab-panel" role="tabpanel" aria-labelledby="tabBtnTimeline" hidden>
+        <section class="cards">
+          <article class="card timeline-controls-card">
+            <h2>Timeline View</h2>
+            <p class="helper-text">Filter timeline by year and use color legend for quick scanning.</p>
+            <div class="form-grid">
+              <label class="field">
+                <span>Year</span>
+                <select id="timelineYear"></select>
+              </label>
+              <label class="field">
+                <span>Month</span>
+                <select id="timelineMonth"></select>
+              </label>
+            </div>
+            <div id="timelineLegend" class="timeline-legend" aria-label="Timeline color legend"></div>
+          </article>
+        </section>
+        <section>
+          <h2>Calendar (Milestones)</h2>
+          <div id="calendar" class="calendar"></div>
+        </section>
+        <section>
+          <h2>Gantt</h2>
+          <div id="gantt" class="gantt"></div>
+        </section>
       </section>
 
-      <section>
-        <h2>Projects</h2>
-        <div id="projectList" class="cards"></div>
-      </section>
-
-      <section>
-        <h2>Calendar (Milestones)</h2>
-        <div id="calendar" class="calendar"></div>
-      </section>
-
-      <section>
-        <h2>Gantt</h2>
-        <div id="gantt" class="gantt"></div>
+      <section id="tabOperations" class="tab-panel" role="tabpanel" aria-labelledby="tabBtnOperations" hidden>
+        <section class="cards">
+          <article class="card">
+            <h2>Dependency Insights</h2>
+            <ul id="dependencyList" class="history"></ul>
+          </article>
+          <article class="card">
+            <h2>Capacity (7d)</h2>
+            <ul id="capacityList" class="history"></ul>
+          </article>
+          <article class="card">
+            <h2>Time Entries</h2>
+            <div class="row">
+              <input id="timeSlug" placeholder="project slug" title="Project slug to log time against" />
+              <input id="timeMinutes" placeholder="minutes" />
+              <input id="timeNote" placeholder="note" title="Optional time entry note" />
+              <button id="addTimeEntryBtn">Log</button>
+            </div>
+            <ul id="timeEntriesList" class="history"></ul>
+          </article>
+          <article class="card">
+            <h2>Intake Forms</h2>
+            <p id="intakeHelperText" class="helper-text">Advanced intake mode using explicit form fields.</p>
+            <div id="intakeFormFields" class="form-grid">
+            <label class="field" data-intake="all">
+              <span>Form type</span>
+              <select id="intakeFormSelect"></select>
+            </label>
+            <label class="field" data-intake="quick-task incoming-event">
+              <span>Project slug</span>
+              <select id="intakeSlug"></select>
+            </label>
+            <label class="field field-full" data-intake="all">
+              <span>Title / Name</span>
+              <input id="intakeTitle" placeholder="Title / name" title="Task title, project name, or event title" />
+            </label>
+            <label class="field field-full" data-intake="all">
+              <span>Description / Next action</span>
+              <input id="intakeDescription" placeholder="Description / next action" title="Optional description, details, or next action" />
+            </label>
+            <label class="field" data-intake="quick-task">
+              <span>Due date (quick-task)</span>
+              <input id="intakeDueDate" type="date" />
+            </label>
+            <label class="field" data-intake="quick-project incoming-event">
+              <span>Due in days</span>
+              <input id="intakeDueDays" type="number" min="1" placeholder="14" />
+            </label>
+            <label class="field" data-intake="quick-project incoming-event">
+              <span>Owner</span>
+              <input id="intakeOwner" placeholder="unassigned" />
+            </label>
+            <label class="field" data-intake="all">
+              <span>Urgency / Priority</span>
+              <select id="intakeUrgency">
+                <option value="">(optional)</option>
+                <option value="low">low</option>
+                <option value="medium">medium</option>
+                <option value="high">high</option>
+                <option value="critical">critical</option>
+              </select>
+            </label>
+            <label class="field" data-intake="quick-project incoming-event">
+              <span>Estimate hours</span>
+              <input id="intakeEstimateHours" type="number" min="0" step="1" placeholder="0" />
+            </label>
+            <label class="field" data-intake="quick-task incoming-event">
+              <span>Recurrence</span>
+              <select id="intakeRecurrence">
+                <option value="">none</option>
+                <option value="daily">daily</option>
+                <option value="weekly">weekly</option>
+                <option value="monthly">monthly</option>
+              </select>
+            </label>
+            <label class="field field-full" data-intake="quick-task">
+              <span>Depends on (quick-task)</span>
+              <input id="intakeDependsOn" placeholder="Task refs (comma-separated)" title="Examples: t-a1b2c3, other-project:t-z9y8x7" />
+            </label>
+            <label class="field field-full" data-intake="quick-task">
+              <span>Fact refs (quick-task)</span>
+              <input id="intakeFactRefs" placeholder="Fact refs (comma-separated)" title="Examples: f-market-size, other-project:f-approved" />
+            </label>
+            <label class="field" data-intake="incoming-event">
+              <span>Event kind (incoming-event)</span>
+              <select id="intakeKind">
+                <option value="">auto-detect</option>
+                <option value="task">task</option>
+                <option value="project">project</option>
+              </select>
+            </label>
+            </div>
+            <div class="row">
+              <button id="submitIntakeBtn">Submit Intake</button>
+            </div>
+            <ul id="intakeList" class="history"></ul>
+          </article>
+          <article class="card">
+            <h2>Automation Rules</h2>
+            <div class="row">
+              <button id="runAutomationDryBtn">Run Dry</button>
+              <button id="runAutomationBtn">Run</button>
+              <button id="exportSnapshotBtn">Export Snapshot</button>
+            </div>
+            <ul id="automationList" class="history"></ul>
+            <div class="row">
+              <input id="migrationInput" placeholder="Migration JSON array" title='Example: [{"title":"X","state":"todo"}]' />
+              <button id="previewMigrationBtn">Preview Migration</button>
+            </div>
+            <ul id="migrationList" class="history"></ul>
+          </article>
+        </section>
       </section>
     </main>
 
@@ -179,7 +402,7 @@
         <h3 class="title"></h3>
         <p class="meta"></p>
         <p class="action"></p>
-        <div class="row">
+        <div class="row stack-row">
           <label>Status</label>
           <select class="statusSelect">
             <option value="idea">idea</option>
@@ -190,14 +413,14 @@
           </select>
           <button class="saveStatus">Save</button>
         </div>
-        <div class="row">
-          <input class="decisionNoteInput" placeholder="Decision note (required when setting blocked/done)" />
+        <div class="row stack-row">
+          <input class="decisionNoteInput" placeholder="Decision note" title="Required when setting blocked or done" />
         </div>
-        <div class="row">
+        <div class="row stack-row">
           <input class="taskInput" placeholder="Quick add task..." />
           <input class="taskDueDate" type="date" title="Task deadline" />
-          <input class="taskDeps" placeholder="depends on task refs: id or project:id" />
-          <input class="taskFacts" placeholder="fact refs: fact-id or project:fact-id" />
+          <select class="taskDeps" multiple size="3" title="Depends on"></select>
+          <select class="taskFacts" multiple size="3" title="Fact refs"></select>
           <select class="taskRecur">
             <option value="">no recur</option>
             <option value="daily">daily</option>
@@ -206,11 +429,11 @@
           </select>
           <button class="addTask">Add Task</button>
         </div>
-        <div class="row">
-          <input class="blockedReasonInput" placeholder="Blocked reason..." />
+        <div class="row stack-row">
+          <input class="blockedReasonInput" placeholder="Blocked reason" title="Explain what is blocking this project" />
           <button class="saveMeta">Save Meta</button>
         </div>
-        <div class="row">
+        <div class="row stack-row">
           <input class="factStatementInput" placeholder="Add fact statement..." />
           <select class="factStatusSelect">
             <option value="unknown">unknown</option>
@@ -218,12 +441,12 @@
             <option value="in-review">in-review</option>
             <option value="verified">verified</option>
           </select>
-          <input class="factSourceInput" placeholder="source URL/reference" />
-          <input class="factNoteInput" placeholder="verification note" />
+          <input class="factSourceInput" placeholder="source URL/reference" title="Source URL or reference for this fact" />
+          <input class="factNoteInput" placeholder="verification note" title="Brief note describing verification" />
           <button class="addFact">Add Fact</button>
         </div>
         <ul class="factList history"></ul>
-        <div class="row">
+        <div class="row stack-row">
           <label><input type="checkbox" class="selectProject" /> select</label>
           <button class="loadHistory">Open History</button>
         </div>
@@ -235,7 +458,7 @@
         <h2>Command Palette</h2>
         <button id="closePaletteBtn">Close</button>
       </div>
-      <input id="paletteInput" placeholder="Type project slug/name or command (status:done, focus:blocked)" />
+      <input id="paletteInput" placeholder="Type project slug/name or command" title="Examples: status:done, focus:blocked" />
       <ul id="paletteList" class="history"></ul>
     </section>
 

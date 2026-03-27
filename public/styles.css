@@ -18,10 +18,8 @@ header, .controls, main {
   padding: 16px;
 }
 .controls {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
+  display: grid;
+  gap: 12px;
 }
 input, select, button {
   background: #1b2030;
@@ -29,9 +27,80 @@ input, select, button {
   border: 1px solid #333b52;
   border-radius: 8px;
   padding: 8px;
+  font-size: 14px;
+  line-height: 1.3;
+}
+input::placeholder {
+  color: #b9c5dd;
+  opacity: 1;
+}
+button {
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25);
+  border-color: #4f8cff;
+}
+button:active {
+  transform: translateY(0);
 }
 input[type="checkbox"] {
   transform: translateY(1px);
+}
+.controls-grid {
+  grid-template-columns: 1fr;
+}
+.control-group {
+  border: 1px solid #333b52;
+  border-radius: 12px;
+  background: #141927;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.control-group-focus {
+  grid-template-columns: 1fr auto;
+  align-items: end;
+}
+.actions-inline {
+  grid-column: 1 / -1;
+}
+.actions-inline .row {
+  align-items: center;
+}
+.field-check label {
+  font-size: 13px;
+  color: #d5dced;
+}
+.field-check {
+  gap: 6px;
+}
+.tabs {
+  margin-bottom: 12px;
+}
+.tab-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tab-btn {
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-weight: 600;
+  background: #1b2030;
+}
+.tab-btn.active {
+  background: #2a5dca;
+  border-color: #4f8cff;
+}
+.tab-panel[hidden] {
+  display: none;
+}
+.tab-panel {
+  display: grid;
+  gap: 16px;
 }
 .smallBtn {
   padding: 2px 6px;
@@ -51,15 +120,62 @@ input[type="checkbox"] {
   min-width: 0;
   overflow: hidden;
 }
+.card h2, .card h3 {
+  margin-top: 0;
+  margin-bottom: 8px;
+  line-height: 1.35;
+}
+.helper-text {
+  margin: 4px 0 10px;
+  font-size: 13px;
+  color: #d5dced;
+}
 .row {
   display: flex;
   gap: 6px;
   margin-top: 8px;
   flex-wrap: wrap;
 }
+.stack-row {
+  flex-direction: column;
+  align-items: stretch;
+}
+.stack-row > input,
+.stack-row > select,
+.stack-row > label,
+.stack-row > button {
+  width: 100%;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px 10px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.field input,
+.field select {
+  width: 100%;
+  min-height: 38px;
+}
+.field span {
+  font-size: 12px;
+  color: #d5dced;
+  font-weight: 600;
+}
+.field-full {
+  grid-column: 1 / -1;
+}
+select[multiple] {
+  min-height: 92px;
+  padding: 6px;
+}
 .row > input,
 .row > select {
-  flex: 1 1 140px;
+  flex: 1 1 180px;
   min-width: 0;
 }
 .row > button {
@@ -67,6 +183,16 @@ input[type="checkbox"] {
 }
 .row .taskInput {
   flex: 1;
+}
+.card .row .taskInput {
+  flex: 2 1 260px;
+}
+.card .row .taskDueDate {
+  flex: 0 0 160px;
+}
+.card .row .taskDeps,
+.card .row .taskFacts {
+  flex: 1 1 220px;
 }
 .history {
   margin: 8px 0 0;
@@ -98,10 +224,6 @@ input[type="checkbox"] {
   width: 100%;
   box-sizing: border-box;
 }
-#intakePayload {
-  width: 100%;
-  min-width: 0;
-}
 #migrationInput {
   width: 100%;
   min-width: 0;
@@ -122,6 +244,7 @@ input[type="checkbox"] {
   min-height: 80px;
   padding: 6px;
   background: #141927;
+  overflow: hidden;
 }
 .calendar-day .date {
   font-size: 12px;
@@ -133,6 +256,68 @@ input[type="checkbox"] {
   background: #202844;
   border-radius: 6px;
   padding: 2px 4px;
+  border-left: 4px solid #4f8cff;
+}
+.calendar-event.year-accent-0,
+.gantt-bar.year-accent-0 {
+  background: #2f63d4;
+}
+.calendar-event.year-accent-1,
+.gantt-bar.year-accent-1 {
+  background: #00a7a7;
+}
+.calendar-event.year-accent-2,
+.gantt-bar.year-accent-2 {
+  background: #8e63e6;
+}
+.calendar-event.year-accent-3,
+.gantt-bar.year-accent-3 {
+  background: #d17a2a;
+}
+.calendar-event.year-accent-4,
+.gantt-bar.year-accent-4 {
+  background: #cb4f8c;
+}
+.calendar-event.year-accent-5,
+.gantt-bar.year-accent-5 {
+  background: #4ea35e;
+}
+.timeline-controls-card {
+  grid-column: 1 / -1;
+}
+.timeline-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.timeline-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #d5dced;
+}
+.calendar-more {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #b8c7ea;
+  cursor: pointer;
+  user-select: none;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.calendar-more:hover {
+  color: #d5e3ff;
+}
+.calendar-more.expanded {
+  color: #9db5eb;
+  text-decoration: none;
+}
+.timeline-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
 }
 .gantt {
   border: 1px solid #333b52;
@@ -198,4 +383,22 @@ input[type="checkbox"] {
   color: #ffb86b;
   opacity: 1;
   font-weight: 600;
+}
+@media (max-width: 900px) {
+  .control-group-focus {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+}
+@media (max-width: 720px) {
+  main {
+    padding-top: 8px;
+  }
+  .tab-btn {
+    flex: 1 1 calc(50% - 8px);
+    text-align: center;
+  }
+  .cards {
+    grid-template-columns: 1fr;
+  }
 }

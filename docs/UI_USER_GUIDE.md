@@ -79,23 +79,45 @@ Guide for human operators using the dashboard at `http://localhost:3000`.
    - partial failures count
 5. Re-run with narrower selection for failed items.
 
+## Add Project and Add Task cards
+
+Use these cards for day-to-day creation work (no JSON required).
+
+### Add Project card
+
+- Fill required fields:
+  - `Project name`
+  - `Owner` (optional, defaults to `unassigned`)
+  - `Due in days` (defaults to `30`)
+- Optional fields:
+  - `Next action`
+  - `Estimate hours`
+  - `Priority`
+- Click `Create Project`.
+
+### Add Task card
+
+- Fill required fields:
+  - `Project slug`
+  - `Task title`
+  - `Due date`
+- Optional fields:
+  - `Depends on` as comma-separated task refs (`task-id` or `project-slug:task-id`)
+  - `Fact refs` as comma-separated refs (`fact-id` or `project-slug:fact-id`)
+  - `Recurrence` (daily/weekly/monthly)
+- Click `Add Task`.
+
 ## Intake forms and automation cards
 
 ## Intake Forms card
 
-- Select form type from dropdown.
-- Enter JSON payload in the input.
-- Click `Submit`.
-
-Example payloads:
-
-- quick task:
-```json
-{"slug":"my-project","task":"Review scope changes","dueDate":"2026-04-10","recurrence":"weekly"}
-{"slug":"my-project","task":"Release checklist","dueDate":"2026-04-12","dependsOn":["t-a1b2c3","t-d4e5f6"]}
-{"slug":"project-b","task":"Integration validation","dueDate":"2026-04-15","dependsOn":["project-a:t-a1b2c3","project-b:t-d4e5f6"]}
-{"slug":"project-b","task":"Finalize launch brief","dueDate":"2026-04-18","factRefs":["project-a:f-market-size","project-b:f-legal-approved"]}
-```
+- This card is now field-based (no JSON typing).
+- Select form type (`Quick Task`, `Quick Project`, or `Incoming Event`).
+- Enter values in the labeled inputs and click `Submit Intake`.
+- Field mapping by form:
+  - `Quick Task`: uses `Project slug`, `Title / Name`, `Due date`, `Recurrence`, optional `Depends on` and `Fact refs`
+  - `Quick Project`: uses `Title / Name` as project name, plus `Owner`, `Due in days`, `Description / Next action`, optional `Estimate hours` and `Urgency/Priority`
+  - `Incoming Event`: uses `Title / Name`, `Description`, `Owner`, optional `Urgency`, `Project slug`, `Estimate hours`, `Due in days`, and `Event kind`
 
 ## Fact verification workflow
 
@@ -104,16 +126,6 @@ Example payloads:
 3. Move facts to `verified` only after entering at least one source and a verification note.
 4. Move tasks to `done` only after linked facts are resolved; otherwise the move is blocked.
 5. Move project status to `done` only after unresolved project facts are zero.
-
-- quick project:
-```json
-{"name":"Q2 Launch","owner":"you","dueDays":30,"nextAction":"Define milestone 1","estimateHours":12}
-```
-
-- incoming event:
-```json
-{"title":"Customer escalation: export timeout","description":"Exports fail above 5k rows","urgency":"high","owner":"unassigned"}
-```
 
 ## Automation Rules card
 

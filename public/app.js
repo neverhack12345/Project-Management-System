@@ -21,7 +21,12 @@ const projectCardTpl = document.getElementById("projectCardTpl");
 const kanbanBoard = document.getElementById("kanbanBoard");
 const calendarEl = document.getElementById("calendar");
 const ganttEl = document.getElementById("gantt");
+const timelineYear = document.getElementById("timelineYear");
+const timelineMonth = document.getElementById("timelineMonth");
+const timelineLegend = document.getElementById("timelineLegend");
 const focusBtns = document.querySelectorAll(".focusBtn");
+const tabButtons = document.querySelectorAll(".tab-btn");
+const tabPanels = document.querySelectorAll(".tab-panel");
 const historyDrawer = document.getElementById("historyDrawer");
 const historyTitle = document.getElementById("historyTitle");
 const historyList = document.getElementById("historyList");
@@ -41,8 +46,35 @@ const timeSlug = document.getElementById("timeSlug");
 const timeMinutes = document.getElementById("timeMinutes");
 const timeNote = document.getElementById("timeNote");
 const addTimeEntryBtn = document.getElementById("addTimeEntryBtn");
+const newProjectName = document.getElementById("newProjectName");
+const newProjectOwner = document.getElementById("newProjectOwner");
+const newProjectDueDays = document.getElementById("newProjectDueDays");
+const newProjectEstimateHours = document.getElementById("newProjectEstimateHours");
+const newProjectNextAction = document.getElementById("newProjectNextAction");
+const newProjectPriority = document.getElementById("newProjectPriority");
+const createProjectBtn = document.getElementById("createProjectBtn");
+const newTaskSlug = document.getElementById("newTaskSlug");
+const newTaskDueDate = document.getElementById("newTaskDueDate");
+const newTaskTitle = document.getElementById("newTaskTitle");
+const newTaskRecurrence = document.getElementById("newTaskRecurrence");
+const newTaskDependsOn = document.getElementById("newTaskDependsOn");
+const newTaskFactRefs = document.getElementById("newTaskFactRefs");
+const createTaskBtn = document.getElementById("createTaskBtn");
 const intakeFormSelect = document.getElementById("intakeFormSelect");
-const intakePayload = document.getElementById("intakePayload");
+const intakeFormFields = document.getElementById("intakeFormFields");
+const intakeHelperText = document.getElementById("intakeHelperText");
+const intakeSlug = document.getElementById("intakeSlug");
+const intakeTitle = document.getElementById("intakeTitle");
+const intakeDescription = document.getElementById("intakeDescription");
+const intakeDueDate = document.getElementById("intakeDueDate");
+const intakeDueDays = document.getElementById("intakeDueDays");
+const intakeOwner = document.getElementById("intakeOwner");
+const intakeUrgency = document.getElementById("intakeUrgency");
+const intakeEstimateHours = document.getElementById("intakeEstimateHours");
+const intakeRecurrence = document.getElementById("intakeRecurrence");
+const intakeDependsOn = document.getElementById("intakeDependsOn");
+const intakeFactRefs = document.getElementById("intakeFactRefs");
+const intakeKind = document.getElementById("intakeKind");
 const submitIntakeBtn = document.getElementById("submitIntakeBtn");
 const intakeList = document.getElementById("intakeList");
 const runAutomationDryBtn = document.getElementById("runAutomationDryBtn");
@@ -59,7 +91,11 @@ const closePaletteBtn = document.getElementById("closePaletteBtn");
 
 const SAVED_VIEWS_KEY = "project_dashboard_saved_views";
 const DIGEST_PREFS_KEY = "project_dashboard_digest_prefs";
+const ACTIVE_TAB_KEY = "project_dashboard_active_tab";
 const selectedProjects = new Set();
+let currentTimelineEvents = [];
+const taskOptionsByProject = new Map();
+const factOptionsByProject = new Map();
 
 const qs = () => {
   const p = new URLSearchParams();
@@ -281,6 +317,123 @@ async function handleWriteResponse(res) {
 
 let currentProjects = [];
 
+function parseCsv(value) {
+  return String(value || "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function getSelectedValues(selectEl) {
+  if (!selectEl) return [];
+  return [...selectEl.selectedOptions].map((option) => option.value).filter(Boolean);
+}
+
+function setSelectOptions(selectEl, options, placeholder, allowMultiple = false) {
+  if (!selectEl) return;
+  const previous = allowMultiple ? getSelectedValues(selectEl) : [selectEl.value];
+  selectEl.innerHTML = "";
+  if (!allowMultiple) {
+    const emptyOption = document.createElement("option");
+    emptyOption.value = "";
+    emptyOption.textContent = placeholder;
+    selectEl.appendChild(emptyOption);
+  }
+  for (const optionValue of options) {
+    const option = document.createElement("option");
+    option.value = optionValue;
+    option.textContent = optionValue;
+    if (previous.includes(optionValue)) option.selected = true;
+    selectEl.appendChild(option);
+  }
+}
+
+function populateProjectTaskOptions(slug, depsSelect, factsSelect) {
+  const taskOptions = taskOptionsByProject.get(slug) || [];
+  const factOptions = factOptionsByProject.get(slug) || [];
+  setSelectOptions(depsSelect, taskOptions, "No dependencies", true);
+  setSelectOptions(factsSelect, factOptions, "No fact refs", true);
+}
+
+function populateNewTaskProjectOptions(projects) {
+  const options = (projects || []).map((project) => project.slug);
+  setSelectOptions(newTaskSlug, options, "Select project");
+  setSelectOptions(intakeSlug, options, "Select project");
+  if (!newTaskSlug.value && options.length) newTaskSlug.value = options[0];
+  if (!intakeSlug.value && options.length) intakeSlug.value = options[0];
+  const slug = newTaskSlug.value;
+  populateProjectTaskOptions(slug, newTaskDependsOn, newTaskFactRefs);
+  if (slug && !factOptionsByProject.has(slug)) {
+    fetchProjectFacts(slug)
+      .then((facts) => {
+        factOptionsByProject.set(
+          slug,
+          facts.map((fact) => fact.factId)
+        );
+        populateProjectTaskOptions(slug, newTaskDependsOn, newTaskFactRefs);
+      })
+      .catch(() => {});
+  }
+}
+
+function clearCreateProjectForm() {
+  newProjectName.value = "";
+  newProjectOwner.value = "";
+  newProjectDueDays.value = "";
+  newProjectEstimateHours.value = "";
+  newProjectNextAction.value = "";
+  newProjectPriority.value = "";
+}
+
+function clearCreateTaskForm() {
+  newTaskTitle.value = "";
+  for (const option of newTaskDependsOn.options) option.selected = false;
+  for (const option of newTaskFactRefs.options) option.selected = false;
+  newTaskRecurrence.value = "";
+  newTaskDueDate.value = new Date().toISOString().slice(0, 10);
+}
+
+function clearIntakeForm() {
+  intakeSlug.value = "";
+  intakeTitle.value = "";
+  intakeDescription.value = "";
+  intakeDueDate.value = "";
+  intakeDueDays.value = "";
+  intakeOwner.value = "";
+  intakeUrgency.value = "";
+  intakeEstimateHours.value = "";
+  intakeRecurrence.value = "";
+  intakeDependsOn.value = "";
+  intakeFactRefs.value = "";
+  intakeKind.value = "";
+}
+
+function updateIntakeFieldVisibility() {
+  const formId = intakeFormSelect.value || "quick-task";
+  const fieldNodes = intakeFormFields?.querySelectorAll(".field[data-intake]") || [];
+  for (const node of fieldNodes) {
+    const allowed = String(node.dataset.intake || "")
+      .split(" ")
+      .map((v) => v.trim())
+      .filter(Boolean);
+    node.hidden = !(allowed.includes("all") || allowed.includes(formId));
+  }
+  if (!intakeHelperText) return;
+  if (formId === "quick-task") {
+    intakeHelperText.textContent = "Quick Task: add a task with due date, optional recurrence and refs.";
+    return;
+  }
+  if (formId === "quick-project") {
+    intakeHelperText.textContent = "Quick Project: create a new project from template fields.";
+    return;
+  }
+  if (formId === "incoming-event") {
+    intakeHelperText.textContent = "Incoming Event: queue an event for routing into a task or project.";
+    return;
+  }
+  intakeHelperText.textContent = "Advanced intake mode using explicit form fields.";
+}
+
 function readDigestPrefs() {
   try {
     return JSON.parse(localStorage.getItem(DIGEST_PREFS_KEY) || "{}");
@@ -346,6 +499,7 @@ function renderProjects(projects) {
     const taskDeps = node.querySelector(".taskDeps");
     const taskFacts = node.querySelector(".taskFacts");
     const taskRecur = node.querySelector(".taskRecur");
+    populateProjectTaskOptions(project.slug, taskDeps, taskFacts);
     taskDueDate.value = new Date().toISOString().slice(0, 10);
     node.querySelector(".addTask").addEventListener("click", async () => {
       if (!taskInput.value.trim()) return;
@@ -353,14 +507,8 @@ function renderProjects(projects) {
         flash.textContent = "Task deadline is required.";
         return;
       }
-      const dependsOn = taskDeps.value
-        .split(",")
-        .map((value) => value.trim())
-        .filter(Boolean);
-      const factRefs = taskFacts.value
-        .split(",")
-        .map((value) => value.trim())
-        .filter(Boolean);
+      const dependsOn = getSelectedValues(taskDeps).map((value) => value.split(" - ")[0]);
+      const factRefs = getSelectedValues(taskFacts);
       try {
         const result = await addTask(
           project.slug,
@@ -373,8 +521,8 @@ function renderProjects(projects) {
         if (result?.taskId) flash.textContent = `Task created: ${result.taskId}`;
         taskInput.value = "";
         taskDueDate.value = new Date().toISOString().slice(0, 10);
-        taskDeps.value = "";
-        taskFacts.value = "";
+        for (const option of taskDeps.options) option.selected = false;
+        for (const option of taskFacts.options) option.selected = false;
         await refresh();
       } catch {}
     });
@@ -426,6 +574,11 @@ function renderProjects(projects) {
           li.appendChild(status);
           factList.appendChild(li);
         }
+        factOptionsByProject.set(
+          project.slug,
+          facts.map((fact) => fact.factId)
+        );
+        populateProjectTaskOptions(project.slug, taskDeps, taskFacts);
       } catch (error) {
         factList.innerHTML = `<li>${error.message}</li>`;
       }
@@ -490,6 +643,7 @@ function renderProjects(projects) {
 function renderKanban(data) {
   if (!kanbanBoard) return;
   const lanes = data?.lanes || {};
+  taskOptionsByProject.clear();
   const laneOrder = ["backlog", "todo", "in-progress", "done"];
   kanbanBoard.innerHTML = "";
   for (const laneId of laneOrder) {
@@ -511,6 +665,10 @@ function renderKanban(data) {
       }
     });
     for (const task of lanes[laneId] || []) {
+      const existing = taskOptionsByProject.get(task.projectSlug) || [];
+      const label = `${task.id} - ${task.title}`;
+      if (!existing.includes(label)) existing.push(label);
+      taskOptionsByProject.set(task.projectSlug, existing);
       const card = document.createElement("article");
       card.className = "kanban-task";
       card.draggable = true;
@@ -543,12 +701,124 @@ function startOfMonth(date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
-function renderCalendar(events) {
+function getEventYear(event) {
+  const source = event?.dueDate || event?.startDate;
+  if (!source) return null;
+  const year = Number(String(source).slice(0, 4));
+  return Number.isFinite(year) ? year : null;
+}
+
+function getQuarterAccentClass(dateValue) {
+  if (!dateValue) return "year-accent-0";
+  const month = new Date(dateValue).getMonth();
+  const quarter = Math.floor(month / 3);
+  return `year-accent-${Math.max(0, Math.min(quarter, 5))}`;
+}
+
+function renderTimelineLegend() {
+  if (!timelineLegend) return;
+  const labels = ["Q1 (Jan-Mar)", "Q2 (Apr-Jun)", "Q3 (Jul-Sep)", "Q4 (Oct-Dec)"];
+  timelineLegend.innerHTML = "";
+  for (let index = 0; index < labels.length; index += 1) {
+    const item = document.createElement("div");
+    item.className = "timeline-legend-item";
+    const dot = document.createElement("span");
+    dot.className = `timeline-dot year-accent-${index}`;
+    const text = document.createElement("span");
+    text.textContent = labels[index];
+    item.appendChild(dot);
+    item.appendChild(text);
+    timelineLegend.appendChild(item);
+  }
+}
+
+function populateTimelineYearOptions(events) {
+  if (!timelineYear) return;
+  const years = [...new Set((events || []).map(getEventYear).filter(Boolean))].sort((a, b) => b - a);
+  const previous = timelineYear.value;
+  timelineYear.innerHTML = "";
+  if (!years.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No years";
+    timelineYear.appendChild(option);
+    return;
+  }
+  for (const year of years) {
+    const option = document.createElement("option");
+    option.value = String(year);
+    option.textContent = String(year);
+    timelineYear.appendChild(option);
+  }
+  timelineYear.value = years.includes(Number(previous)) ? previous : String(years[0]);
+}
+
+function populateTimelineMonthOptions() {
+  if (!timelineMonth) return;
+  const previous = timelineMonth.value;
+  const monthLabels = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  timelineMonth.innerHTML = "";
+  for (let month = 0; month < 12; month += 1) {
+    const option = document.createElement("option");
+    option.value = String(month);
+    option.textContent = monthLabels[month];
+    timelineMonth.appendChild(option);
+  }
+  if (previous && Number(previous) >= 0 && Number(previous) <= 11) {
+    timelineMonth.value = previous;
+  } else {
+    timelineMonth.value = String(new Date().getMonth());
+  }
+}
+
+function getSelectedTimelineYear(events) {
+  if (!timelineYear?.value) {
+    const fallback = [...new Set((events || []).map(getEventYear).filter(Boolean))].sort((a, b) => b - a)[0];
+    return fallback || new Date().getFullYear();
+  }
+  return Number(timelineYear.value);
+}
+
+function getSelectedTimelineMonth() {
+  const value = Number(timelineMonth?.value);
+  if (!Number.isFinite(value) || value < 0 || value > 11) return new Date().getMonth();
+  return value;
+}
+
+function refreshTimelineViews() {
+  const selectedYear = getSelectedTimelineYear(currentTimelineEvents);
+  const selectedMonth = getSelectedTimelineMonth();
+  const selectedMonthEvents = currentTimelineEvents.filter((event) => {
+    if (getEventYear(event) !== selectedYear) return false;
+    if (!event?.dueDate) return false;
+    return new Date(event.dueDate).getMonth() === selectedMonth;
+  });
+  const selectedYearEvents = currentTimelineEvents.filter((event) => getEventYear(event) === selectedYear);
+  renderCalendar(selectedMonthEvents, selectedYear, selectedMonth);
+  renderGantt(selectedYearEvents, selectedYear);
+}
+
+function setActiveTab(tabName, persist = true) {
+  for (const btn of tabButtons) {
+    const active = btn.dataset.tab === tabName;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-selected", String(active));
+    btn.tabIndex = active ? 0 : -1;
+  }
+  for (const panel of tabPanels) {
+    const active = panel.id === `tab${tabName.charAt(0).toUpperCase()}${tabName.slice(1)}`;
+    panel.classList.toggle("active", active);
+    panel.hidden = !active;
+  }
+  if (persist) localStorage.setItem(ACTIVE_TAB_KEY, tabName);
+}
+
+function renderCalendar(events, selectedYear, selectedMonth) {
   calendarEl.innerHTML = "";
   const now = new Date();
-  const first = startOfMonth(now);
+  const first = startOfMonth(new Date(selectedYear || now.getFullYear(), selectedMonth ?? now.getMonth(), 1));
   const startWeekday = first.getDay();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const daysInMonth = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
 
   for (let i = 0; i < startWeekday; i += 1) {
     const filler = document.createElement("div");
@@ -556,26 +826,50 @@ function renderCalendar(events) {
     calendarEl.appendChild(filler);
   }
   for (let day = 1; day <= daysInMonth; day += 1) {
-    const d = new Date(now.getFullYear(), now.getMonth(), day);
+    const d = new Date(first.getFullYear(), first.getMonth(), day);
     const key = d.toISOString().slice(0, 10);
     const dayEl = document.createElement("div");
     dayEl.className = "calendar-day";
     dayEl.innerHTML = `<div class="date">${key}</div>`;
-    for (const event of events.filter((e) => e.dueDate === key)) {
+    const dayEvents = events.filter((e) => e.dueDate === key);
+    const visibleEvents = dayEvents.slice(0, 3);
+    const hiddenEvents = dayEvents.slice(3);
+    for (const event of visibleEvents) {
       const ev = document.createElement("div");
-      ev.className = "calendar-event";
+      ev.className = `calendar-event ${getQuarterAccentClass(event.dueDate)}`;
       ev.textContent = `${event.projectSlug}: ${event.milestoneName}`;
       dayEl.appendChild(ev);
+    }
+    if (hiddenEvents.length) {
+      const hiddenWrap = document.createElement("div");
+      hiddenWrap.hidden = true;
+      for (const event of hiddenEvents) {
+        const ev = document.createElement("div");
+        ev.className = `calendar-event ${getQuarterAccentClass(event.dueDate)}`;
+        ev.textContent = `${event.projectSlug}: ${event.milestoneName}`;
+        hiddenWrap.appendChild(ev);
+      }
+      const more = document.createElement("div");
+      more.className = "calendar-more";
+      more.textContent = `+${hiddenEvents.length} more`;
+      more.addEventListener("click", () => {
+        const expanded = !hiddenWrap.hidden;
+        hiddenWrap.hidden = expanded;
+        more.classList.toggle("expanded", !expanded);
+        more.textContent = expanded ? `+${hiddenEvents.length} more` : "Show less";
+      });
+      dayEl.appendChild(hiddenWrap);
+      dayEl.appendChild(more);
     }
     calendarEl.appendChild(dayEl);
   }
 }
 
-function renderGantt(events) {
+function renderGantt(events, selectedYear) {
   ganttEl.innerHTML = "";
   const valid = events.filter((e) => e.startDate && e.dueDate);
   if (!valid.length) {
-    ganttEl.textContent = "No milestone date ranges yet.";
+    ganttEl.textContent = `No milestone date ranges for ${selectedYear || "selected year"} yet.`;
     return;
   }
   const min = Math.min(...valid.map((e) => new Date(e.startDate).getTime()));
@@ -591,7 +885,7 @@ function renderGantt(events) {
     const track = document.createElement("div");
     track.className = "gantt-track";
     const bar = document.createElement("div");
-    bar.className = "gantt-bar";
+    bar.className = `gantt-bar ${getQuarterAccentClass(event.dueDate)}`;
     const left = ((new Date(event.startDate).getTime() - min) / span) * 100;
     const width =
       ((new Date(event.dueDate).getTime() - new Date(event.startDate).getTime()) / span) * 100;
@@ -819,6 +1113,7 @@ function renderIntakeForms(data) {
     opt.textContent = form.name;
     intakeFormSelect.appendChild(opt);
   }
+  updateIntakeFieldVisibility();
 }
 
 function renderAutomationRuns(data) {
@@ -852,9 +1147,13 @@ async function refresh() {
       fetchAutomationRuns()
     ]);
   renderProjects(projectsRes.projects || []);
+  populateNewTaskProjectOptions(projectsRes.projects || []);
   renderKanban(boardRes);
-  renderCalendar(timelineRes.events || []);
-  renderGantt(timelineRes.events || []);
+  currentTimelineEvents = timelineRes.events || [];
+  populateTimelineYearOptions(currentTimelineEvents);
+  populateTimelineMonthOptions();
+  renderTimelineLegend();
+  refreshTimelineViews();
   renderHealth(healthRes);
   renderAlerts(alertsRes);
   renderActionQueue(actionQueueRes);
@@ -1048,17 +1347,154 @@ addTimeEntryBtn.addEventListener("click", async () => {
     flash.textContent = error.message;
   }
 });
-submitIntakeBtn.addEventListener("click", async () => {
+createProjectBtn.addEventListener("click", async () => {
+  const name = newProjectName.value.trim();
+  if (!name) {
+    flash.textContent = "Project name is required.";
+    return;
+  }
+  const dueDays = Number(newProjectDueDays.value || 30);
+  if (!Number.isFinite(dueDays) || dueDays < 1) {
+    flash.textContent = "Due in days must be at least 1.";
+    return;
+  }
+  const estimateHoursRaw = newProjectEstimateHours.value.trim();
+  const estimateHours = estimateHoursRaw ? Number(estimateHoursRaw) : undefined;
+  if (estimateHoursRaw && (!Number.isFinite(estimateHours) || estimateHours < 0)) {
+    flash.textContent = "Estimate hours must be a non-negative number.";
+    return;
+  }
   try {
-    const formId = intakeFormSelect.value;
-    const payload = JSON.parse(intakePayload.value || "{}");
-    const result = await submitIntake(formId, payload);
-    intakeList.innerHTML = `<li>Submitted: ${result.result?.type || "n/a"} ${result.result?.slug || ""}</li>`;
+    const payload = {
+      name,
+      owner: newProjectOwner.value.trim() || "unassigned",
+      dueDays,
+      nextAction: newProjectNextAction.value.trim(),
+      priority: newProjectPriority.value || undefined
+    };
+    if (estimateHoursRaw) payload.estimateHours = estimateHours;
+    const result = await submitIntake("quick-project", payload);
+    flash.textContent = `Project created: ${result?.slug || name}`;
+    clearCreateProjectForm();
     await refresh();
   } catch (error) {
     flash.textContent = error.message;
   }
 });
+createTaskBtn.addEventListener("click", async () => {
+  const slug = newTaskSlug.value.trim();
+  const task = newTaskTitle.value.trim();
+  const dueDate = newTaskDueDate.value;
+  if (!slug) {
+    flash.textContent = "Project slug is required to add a task.";
+    return;
+  }
+  if (!task) {
+    flash.textContent = "Task title is required.";
+    return;
+  }
+  if (!dueDate) {
+    flash.textContent = "Task due date is required.";
+    return;
+  }
+  try {
+    const result = await addTask(
+      slug,
+      task,
+      dueDate,
+      newTaskRecurrence.value || "",
+      getSelectedValues(newTaskDependsOn).map((value) => value.split(" - ")[0]),
+      getSelectedValues(newTaskFactRefs)
+    );
+    if (result?.taskId) flash.textContent = `Task created: ${result.taskId}`;
+    else flash.textContent = "Task created successfully.";
+    clearCreateTaskForm();
+    await refresh();
+  } catch (error) {
+    flash.textContent = error.message;
+  }
+});
+newTaskSlug.addEventListener("change", () => {
+  const slug = newTaskSlug.value;
+  populateProjectTaskOptions(slug, newTaskDependsOn, newTaskFactRefs);
+  if (!factOptionsByProject.has(slug)) {
+    fetchProjectFacts(slug)
+      .then((facts) => {
+        factOptionsByProject.set(
+          slug,
+          facts.map((fact) => fact.factId)
+        );
+        populateProjectTaskOptions(slug, newTaskDependsOn, newTaskFactRefs);
+      })
+      .catch(() => {});
+  }
+});
+submitIntakeBtn.addEventListener("click", async () => {
+  try {
+    const formId = intakeFormSelect.value;
+    let payload = {};
+    if (formId === "quick-task") {
+      const slug = intakeSlug.value.trim();
+      const task = intakeTitle.value.trim();
+      const dueDate = intakeDueDate.value;
+      if (!slug || !task || !dueDate) {
+        flash.textContent = "Quick Task requires project slug, title, and due date.";
+        return;
+      }
+      payload = {
+        slug,
+        task,
+        dueDate,
+        recurrence: intakeRecurrence.value || "",
+        dependsOn: parseCsv(intakeDependsOn.value),
+        factRefs: parseCsv(intakeFactRefs.value)
+      };
+      if (intakeUrgency.value) payload.priority = intakeUrgency.value;
+      if (intakeDescription.value.trim()) payload.nextAction = intakeDescription.value.trim();
+    } else if (formId === "quick-project") {
+      const name = intakeTitle.value.trim();
+      if (!name) {
+        flash.textContent = "Quick Project requires a project name in Title / Name.";
+        return;
+      }
+      payload = {
+        name,
+        owner: intakeOwner.value.trim() || "unassigned",
+        dueDays: Number(intakeDueDays.value || 30),
+        nextAction: intakeDescription.value.trim()
+      };
+      if (intakeEstimateHours.value.trim()) payload.estimateHours = Number(intakeEstimateHours.value);
+      if (intakeUrgency.value) payload.priority = intakeUrgency.value;
+    } else if (formId === "incoming-event") {
+      const title = intakeTitle.value.trim();
+      if (!title) {
+        flash.textContent = "Incoming Event requires a title.";
+        return;
+      }
+      payload = {
+        title,
+        description: intakeDescription.value.trim(),
+        owner: intakeOwner.value.trim() || "unassigned",
+        urgency: intakeUrgency.value || "medium",
+        projectSlug: intakeSlug.value.trim(),
+        estimateHours: intakeEstimateHours.value.trim() ? Number(intakeEstimateHours.value) : 0,
+        dueDays: intakeDueDays.value.trim() ? Number(intakeDueDays.value) : undefined,
+        recurrence: intakeRecurrence.value || "",
+        kind: intakeKind.value || ""
+      };
+    } else {
+      flash.textContent = "Select an intake form type.";
+      return;
+    }
+    const result = await submitIntake(formId, payload);
+    intakeList.innerHTML = `<li>Submitted: ${result.result?.type || "n/a"} ${result.result?.slug || ""}</li>`;
+    clearIntakeForm();
+    await refresh();
+  } catch (error) {
+    flash.textContent = error.message;
+  }
+});
+intakeFormSelect.addEventListener("change", updateIntakeFieldVisibility);
 runAutomationDryBtn.addEventListener("click", async () => {
   try {
     const result = await runAutomation(true);
@@ -1124,9 +1560,27 @@ deleteViewBtn.addEventListener("click", () => {
 for (const btn of focusBtns) {
   btn.addEventListener("click", () => applyFocus(btn.dataset.focus));
 }
+for (const btn of tabButtons) {
+  btn.addEventListener("click", () => setActiveTab(btn.dataset.tab));
+  btn.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+    event.preventDefault();
+    const list = [...tabButtons];
+    const currentIndex = list.indexOf(btn);
+    const delta = event.key === "ArrowRight" ? 1 : -1;
+    const nextIndex = (currentIndex + delta + list.length) % list.length;
+    const next = list[nextIndex];
+    next.focus();
+    setActiveTab(next.dataset.tab);
+  });
+}
+timelineYear?.addEventListener("change", refreshTimelineViews);
+timelineMonth?.addEventListener("change", refreshTimelineViews);
 closeHistoryBtn.addEventListener("click", () => {
   historyDrawer.classList.add("hidden");
 });
+setActiveTab(localStorage.getItem(ACTIVE_TAB_KEY) || "overview", false);
 applyDigestPrefs(readDigestPrefs());
 renderSavedViews();
+clearCreateTaskForm();
 refresh();
