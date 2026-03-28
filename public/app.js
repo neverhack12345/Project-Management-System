@@ -55,11 +55,20 @@ const newProjectPriority = document.getElementById("newProjectPriority");
 const createProjectBtn = document.getElementById("createProjectBtn");
 const newTaskSlug = document.getElementById("newTaskSlug");
 const newTaskDueDate = document.getElementById("newTaskDueDate");
+const newTaskDueText = document.getElementById("newTaskDueText");
 const newTaskTitle = document.getElementById("newTaskTitle");
-const newTaskRecurrence = document.getElementById("newTaskRecurrence");
+const newTaskRecurText = document.getElementById("newTaskRecurText");
+const newTaskRecurPreview = document.getElementById("newTaskRecurPreview");
 const newTaskDependsOn = document.getElementById("newTaskDependsOn");
 const newTaskFactRefs = document.getElementById("newTaskFactRefs");
 const createTaskBtn = document.getElementById("createTaskBtn");
+const openTaskModalBtn = document.getElementById("openTaskModalBtn");
+const taskCreateModal = document.getElementById("taskCreateModal");
+const closeTaskModalBtn = document.getElementById("closeTaskModalBtn");
+const cancelTaskModalBtn = document.getElementById("cancelTaskModalBtn");
+const taskModalFutureDatesOnly = document.getElementById("taskModalFutureDatesOnly");
+const taskModalCreatedText = document.getElementById("taskModalCreatedText");
+const taskModalCreatedDate = document.getElementById("taskModalCreatedDate");
 const intakeFormSelect = document.getElementById("intakeFormSelect");
 const intakeFormFields = document.getElementById("intakeFormFields");
 const intakeHelperText = document.getElementById("intakeHelperText");
@@ -96,6 +105,77 @@ const selectedProjects = new Set();
 let currentTimelineEvents = [];
 const taskOptionsByProject = new Map();
 const factOptionsByProject = new Map();
+
+function isIsoDateClient(value) {
+  const s = String(value || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const parts = s.split("-").map(Number);
+  const d = new Date(parts[0], parts[1] - 1, parts[2]);
+  return d.getFullYear() === parts[0] && d.getMonth() === parts[1] - 1 && d.getDate() === parts[2];
+}
+
+function parseRecurrenceFromText(text) {
+  const t = String(text || "").trim().toLowerCase();
+  if (!t) return "";
+  if (/\b(daily|every day|each day)\b/.test(t) || (/\bday\b/.test(t) && /\b(every|each)\b/.test(t))) return "daily";
+  if (
+    /\b(weekly|week)\b/.test(t) ||
+    /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/.test(t) ||
+    /\b(mon|tue|wed|thu|fri|sat|sun)\b/.test(t)
+  ) {
+    return "weekly";
+  }
+  if (/\b(monthly|month|every month)\b/.test(t)) return "monthly";
+  return "";
+}
+
+function updateTaskRecurPreview() {
+  if (!newTaskRecurPreview || !newTaskRecurText) return;
+  const v = parseRecurrenceFromText(newTaskRecurText.value);
+  newTaskRecurPreview.textContent = v || "—";
+}
+
+function syncDueFromDatePicker() {
+  if (newTaskDueDate?.value && newTaskDueText) newTaskDueText.value = newTaskDueDate.value;
+}
+
+function syncDueFromTextField() {
+  const t = newTaskDueText?.value.trim() || "";
+  if (isIsoDateClient(t) && newTaskDueDate) newTaskDueDate.value = t;
+}
+
+function setTaskModalCreatedDates() {
+  const iso = new Date().toISOString().slice(0, 10);
+  if (taskModalCreatedText) taskModalCreatedText.value = iso;
+  if (taskModalCreatedDate) taskModalCreatedDate.value = iso;
+}
+
+function openTaskCreateModal() {
+  if (!taskCreateModal) return;
+  setTaskModalCreatedDates();
+  syncDueFromDatePicker();
+  updateTaskRecurPreview();
+  taskCreateModal.hidden = false;
+  taskCreateModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("task-modal-open");
+  newTaskTitle?.focus();
+}
+
+function closeTaskCreateModal() {
+  if (!taskCreateModal) return;
+  taskCreateModal.hidden = true;
+  taskCreateModal.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("task-modal-open");
+}
+
+function selectedTaskCreatePriority() {
+  return document.querySelector('input[name="taskCreatePriority"]:checked')?.value || "normal";
+}
+
+function priorityMetaFromChoice(choice) {
+  const map = { lowest: "low", low: "low", medium: "medium", high: "high", highest: "critical" };
+  return map[choice] || null;
+}
 
 const qs = () => {
   const p = new URLSearchParams();
@@ -389,8 +469,14 @@ function clearCreateTaskForm() {
   newTaskTitle.value = "";
   for (const option of newTaskDependsOn.options) option.selected = false;
   for (const option of newTaskFactRefs.options) option.selected = false;
-  newTaskRecurrence.value = "";
+  if (newTaskRecurText) newTaskRecurText.value = "";
+  updateTaskRecurPreview();
   newTaskDueDate.value = new Date().toISOString().slice(0, 10);
+  syncDueFromDatePicker();
+  const normalRadio = document.querySelector('input[name="taskCreatePriority"][value="normal"]');
+  if (normalRadio) normalRadio.checked = true;
+  if (taskModalFutureDatesOnly) taskModalFutureDatesOnly.checked = true;
+  setTaskModalCreatedDates();
 }
 
 function clearIntakeForm() {
@@ -1300,7 +1386,13 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault();
     openPalette();
   }
-  if (event.key === "Escape") closePalette();
+  if (event.key === "Escape") {
+    if (taskCreateModal && !taskCreateModal.hidden) {
+      closeTaskCreateModal();
+      return;
+    }
+    closePalette();
+  }
 });
 selectAllProjects.addEventListener("change", () => {
   if (selectAllProjects.checked) {
@@ -1384,17 +1476,43 @@ createProjectBtn.addEventListener("click", async () => {
 createTaskBtn.addEventListener("click", async () => {
   const slug = newTaskSlug.value.trim();
   const task = newTaskTitle.value.trim();
-  const dueDate = newTaskDueDate.value;
+  syncDueFromTextField();
+  let dueDate = "";
+  if (newTaskDueText?.value.trim() && isIsoDateClient(newTaskDueText.value.trim())) {
+    dueDate = newTaskDueText.value.trim();
+  } else if (newTaskDueDate.value) {
+    dueDate = newTaskDueDate.value;
+  }
   if (!slug) {
     flash.textContent = "Project slug is required to add a task.";
     return;
   }
   if (!task) {
-    flash.textContent = "Task title is required.";
+    flash.textContent = "Task description is required.";
     return;
   }
   if (!dueDate) {
-    flash.textContent = "Task due date is required.";
+    flash.textContent = "Task due date is required (YYYY-MM-DD).";
+    return;
+  }
+  if (!isIsoDateClient(dueDate)) {
+    flash.textContent = "Due date must be a valid calendar date.";
+    return;
+  }
+  if (taskModalFutureDatesOnly?.checked) {
+    const today = new Date().toISOString().slice(0, 10);
+    if (dueDate < today) {
+      flash.textContent = "Due date must be today or later when “Only future dates” is checked.";
+      return;
+    }
+  }
+  const recurrenceRaw = newTaskRecurText?.value || "";
+  const recurrenceTrim = recurrenceRaw.trim();
+  const recurrenceSkip = /^(none|no|-)$/i.test(recurrenceTrim);
+  const recurrence = recurrenceSkip ? "" : parseRecurrenceFromText(recurrenceRaw);
+  if (recurrenceTrim && !recurrenceSkip && !recurrence) {
+    flash.textContent =
+      "Recurrence text was not recognized. Use phrases like “daily”, “every week”, or “monthly”, or leave blank.";
     return;
   }
   try {
@@ -1402,13 +1520,26 @@ createTaskBtn.addEventListener("click", async () => {
       slug,
       task,
       dueDate,
-      newTaskRecurrence.value || "",
+      recurrence,
       getSelectedValues(newTaskDependsOn).map((value) => value.split(" - ")[0]),
       getSelectedValues(newTaskFactRefs)
     );
+    const metaPriority = priorityMetaFromChoice(selectedTaskCreatePriority());
+    if (metaPriority) {
+      try {
+        await saveProjectMeta(slug, { priority: metaPriority });
+      } catch (metaErr) {
+        flash.textContent = `Task created (${result?.taskId || "ok"}) but project priority was not updated: ${metaErr.message}`;
+        clearCreateTaskForm();
+        closeTaskCreateModal();
+        await refresh();
+        return;
+      }
+    }
     if (result?.taskId) flash.textContent = `Task created: ${result.taskId}`;
     else flash.textContent = "Task created successfully.";
     clearCreateTaskForm();
+    closeTaskCreateModal();
     await refresh();
   } catch (error) {
     flash.textContent = error.message;
@@ -1429,6 +1560,20 @@ newTaskSlug.addEventListener("change", () => {
       .catch(() => {});
   }
 });
+
+if (openTaskModalBtn && taskCreateModal) {
+  openTaskModalBtn.addEventListener("click", () => openTaskCreateModal());
+}
+if (closeTaskModalBtn) closeTaskModalBtn.addEventListener("click", () => closeTaskCreateModal());
+if (cancelTaskModalBtn) cancelTaskModalBtn.addEventListener("click", () => closeTaskCreateModal());
+if (taskCreateModal) {
+  taskCreateModal.addEventListener("click", (e) => {
+    if (e.target === taskCreateModal) closeTaskCreateModal();
+  });
+}
+if (newTaskDueDate) newTaskDueDate.addEventListener("change", syncDueFromDatePicker);
+if (newTaskDueText) newTaskDueText.addEventListener("input", syncDueFromTextField);
+if (newTaskRecurText) newTaskRecurText.addEventListener("input", updateTaskRecurPreview);
 submitIntakeBtn.addEventListener("click", async () => {
   try {
     const formId = intakeFormSelect.value;

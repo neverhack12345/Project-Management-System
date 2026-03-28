@@ -25,6 +25,19 @@ import {
   updateMilestone,
   updateProjectStatus
 } from "./markdown-store.js";
+import {
+  buildVaultIndex,
+  buildVaultTree,
+  createVaultNote,
+  ensureVaultDir,
+  getVaultFilePayload,
+  getVaultGraphWithOptionalDiskCache,
+  getVaultIndexCached,
+  listVaultMarkdownRelPaths,
+  normalizeVaultRelPath,
+  searchVaultNotes,
+  writeVaultNote
+} from "./vault-store.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -104,6 +117,7 @@ function evaluateCondition(condition, context) {
 
 async function createApp() {
   await ensureProjectsDir();
+  await ensureVaultDir();
   const app = express();
   app.use(express.json());
   app.use(express.static(publicDir));
@@ -117,6 +131,139 @@ async function createApp() {
   app.get("/api/projects", async (req, res) => {
     const result = await queryIndex(req.query);
     res.json(result);
+  });
+
+  app.get("/api/vault/tree", async (_req, res) => {
+    try {
+      const paths = await listVaultMarkdownRelPaths();
+      res.json({ paths, tree: buildVaultTree(paths) });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.get("/api/vault/file", async (req, res) => {
+    try {
+      const payload = await getVaultFilePayload(req.query.path || "");
+      res.json(payload);
+    } catch (error) {
+      if (error.code === "VAULT_PATH_INVALID") {
+        res.status(400).json({ ok: false, error: error.message });
+        return;
+      }
+      if (error.code === "VAULT_NOT_FOUND") {
+        res.status(404).json({ ok: false, error: error.message });
+        return;
+      }
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post("/api/vault/file", async (req, res) => {
+    try {
+      const body = req.body || {};
+      const relPath = body.path;
+      const result = await createVaultNote(relPath, {
+        title: body.title,
+        content: body.content,
+        source: body.source
+      });
+      const commit = await maybeAutoCommit({
+        slug: "vault",
+        message: `vault: create ${result.path}`,
+        files: [result.updatedFile]
+      });
+      res.json({ ok: true, path: result.path, commit });
+    } catch (error) {
+      if (error.code === "VAULT_PATH_INVALID") {
+        res.status(400).json({ ok: false, error: error.message });
+        return;
+      }
+      if (error.code === "VAULT_EXISTS") {
+        res.status(409).json({ ok: false, error: error.message });
+        return;
+      }
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.put("/api/vault/file", async (req, res) => {
+    try {
+      const body = req.body || {};
+      const relPath = body.path;
+      const content = body.content;
+      if (content === undefined || content === null) {
+        res.status(400).json({ ok: false, error: "content is required" });
+        return;
+      }
+      const result = await writeVaultNote(relPath, content);
+      const commit = await maybeAutoCommit({
+        slug: "vault",
+        message: `vault: update ${result.path}`,
+        files: [result.updatedFile]
+      });
+      res.json({ ok: true, path: result.path, commit });
+    } catch (error) {
+      if (error.code === "VAULT_PATH_INVALID") {
+        res.status(400).json({ ok: false, error: error.message });
+        return;
+      }
+      if (error.code === "VAULT_NOT_FOUND") {
+        res.status(404).json({ ok: false, error: error.message });
+        return;
+      }
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.get("/api/vault/graph", async (_req, res) => {
+    try {
+      const result = await getVaultGraphWithOptionalDiskCache();
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.get("/api/vault/backlinks", async (req, res) => {
+    const norm = normalizeVaultRelPath(req.query.path || "");
+    if (!norm) {
+      res.status(400).json({ ok: false, error: "Invalid vault path" });
+      return;
+    }
+    try {
+      const index = await getVaultIndexCached();
+      res.json({ path: norm, backlinks: index.backlinks[norm] || [] });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.get("/api/vault/search", async (req, res) => {
+    try {
+      const q = String(req.query.q || "");
+      const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+      const hits = await searchVaultNotes(q, limit);
+      res.json({ query: q, hits });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.get("/api/vault/index", async (_req, res) => {
+    try {
+      const index = await buildVaultIndex();
+      res.json({
+        generatedAt: index.generatedAt,
+        paths: index.paths,
+        notes: index.notes,
+        outgoing: index.outgoing,
+        backlinks: index.backlinks,
+        graph: index.graph
+      });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
   });
 
   app.get("/api/timeline", async (_req, res) => {

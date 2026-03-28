@@ -8,8 +8,11 @@
   </head>
   <body>
     <header>
-      <h1>Markdown Project Dashboard</h1>
-      <p>Projects, milestones, calendar, and gantt from markdown files.</p>
+      <div class="header-bar">
+        <h1>Markdown Project Dashboard</h1>
+        <a class="header-notes-link" href="/notes.html">Note taking</a>
+      </div>
+      <p class="header-tagline">Projects, milestones, calendar, and gantt from markdown files.</p>
     </header>
 
     <section class="controls controls-grid">
@@ -205,43 +208,10 @@
               <button id="createProjectBtn">Create Project</button>
             </div>
           </article>
-          <article class="card">
-            <h2>Add Task</h2>
-            <p class="helper-text">Add a task to any project from one place.</p>
-            <div class="form-grid">
-              <label class="field">
-                <span>Project slug</span>
-                <select id="newTaskSlug"></select>
-              </label>
-              <label class="field">
-                <span>Due date</span>
-                <input id="newTaskDueDate" type="date" />
-              </label>
-              <label class="field field-full">
-                <span>Task title</span>
-                <input id="newTaskTitle" placeholder="Review scope changes" title="Example: Review scope changes with team" />
-              </label>
-              <label class="field">
-                <span>Recurrence (optional)</span>
-                <select id="newTaskRecurrence">
-                  <option value="">none</option>
-                  <option value="daily">daily</option>
-                  <option value="weekly">weekly</option>
-                  <option value="monthly">monthly</option>
-                </select>
-              </label>
-              <label class="field field-full">
-                <span>Depends on (optional)</span>
-                <select id="newTaskDependsOn" multiple size="4"></select>
-              </label>
-              <label class="field field-full">
-                <span>Fact refs (optional)</span>
-                <select id="newTaskFactRefs" multiple size="4"></select>
-              </label>
-            </div>
-            <div class="row">
-              <button id="createTaskBtn">Add Task</button>
-            </div>
+          <article class="card card-task-launch">
+            <h2>Tasks</h2>
+            <p class="helper-text">Open the task dialog to set description, priority, due date, recurrence, and dependencies.</p>
+            <button type="button" id="openTaskModalBtn" class="task-modal-open-btn">Create task…</button>
           </article>
         </section>
         <section>
@@ -452,6 +422,122 @@
         </div>
       </article>
     </template>
+
+    <div id="taskCreateModal" class="task-modal-overlay" hidden>
+      <div class="task-modal" role="dialog" aria-modal="true" aria-labelledby="taskModalTitle">
+        <header class="task-modal-header">
+          <h2 id="taskModalTitle">Create or edit Task</h2>
+          <div class="task-modal-header-actions">
+            <button type="button" class="task-modal-icon-btn" id="taskModalSettingsBtn" title="Form preferences (coming soon)" aria-label="Settings">⚙</button>
+            <button type="button" class="task-modal-icon-btn" id="closeTaskModalBtn" aria-label="Close dialog">×</button>
+          </div>
+        </header>
+
+        <div class="task-modal-body">
+          <label class="task-modal-field task-modal-field-project">
+            <span class="task-modal-label">Project</span>
+            <select id="newTaskSlug" class="task-modal-input"></select>
+          </label>
+
+          <hr class="task-modal-rule" />
+
+          <label class="task-modal-field">
+            <span class="task-modal-label">Descr<span class="task-k">i</span>ption</span>
+            <textarea id="newTaskTitle" class="task-modal-textarea" rows="4" placeholder="Take out the trash" title="Task description"></textarea>
+          </label>
+
+          <hr class="task-modal-rule" />
+
+          <div class="task-modal-field">
+            <span class="task-modal-label">Pr<span class="task-k">i</span>ority</span>
+            <div class="task-modal-priority" role="radiogroup" aria-label="Task priority">
+              <label class="task-modal-radio"><input type="radio" name="taskCreatePriority" value="lowest" /> <span><span class="task-k">L</span>owest</span></label>
+              <label class="task-modal-radio"><input type="radio" name="taskCreatePriority" value="low" /> <span><span class="task-k">L</span>ow</span></label>
+              <label class="task-modal-radio"><input type="radio" name="taskCreatePriority" value="normal" checked /> <span><span class="task-k">N</span>ormal</span></label>
+              <label class="task-modal-radio"><input type="radio" name="taskCreatePriority" value="medium" /> <span><span class="task-k">M</span>edium</span></label>
+              <label class="task-modal-radio"><input type="radio" name="taskCreatePriority" value="high" /> <span><span class="task-k">H</span>igh</span></label>
+              <label class="task-modal-radio"><input type="radio" name="taskCreatePriority" value="highest" /> <span>H<span class="task-k">i</span>ghest</span></label>
+            </div>
+          </div>
+
+          <hr class="task-modal-rule" />
+
+          <div class="task-modal-dual-row">
+            <label class="task-modal-field task-modal-grow">
+              <span class="task-modal-label"><span class="task-k">R</span>ecurs</span>
+              <input type="text" id="newTaskRecurText" class="task-modal-input" placeholder="every week on Monday" autocomplete="off" />
+            </label>
+            <div class="task-modal-field task-modal-recur-preview-wrap">
+              <span class="task-modal-label task-modal-label-muted">Parsed</span>
+              <div id="newTaskRecurPreview" class="task-modal-recur-preview" title="Maps to stored recurrence">—</div>
+            </div>
+          </div>
+
+          <div class="task-modal-dual-row">
+            <label class="task-modal-field task-modal-grow">
+              <span class="task-modal-label"><span class="task-k">D</span>ue</span>
+              <input type="text" id="newTaskDueText" class="task-modal-input" placeholder="YYYY-MM-DD" inputmode="numeric" autocomplete="off" />
+            </label>
+            <label class="task-modal-field task-modal-date-wrap">
+              <span class="task-modal-label task-modal-label-muted">Calendar</span>
+              <input type="date" id="newTaskDueDate" class="task-modal-input" />
+            </label>
+          </div>
+
+          <label class="task-modal-check">
+            <input type="checkbox" id="taskModalFutureDatesOnly" checked />
+            <span>Only <span class="task-k">f</span>uture dates</span>
+          </label>
+
+          <hr class="task-modal-rule" />
+
+          <label class="task-modal-field">
+            <span class="task-modal-label"><span class="task-k">B</span>efore this</span>
+            <span class="task-modal-hint">Tasks this one depends on</span>
+            <select id="newTaskDependsOn" class="task-modal-input task-modal-multiselect" multiple size="5"></select>
+          </label>
+
+          <hr class="task-modal-rule" />
+
+          <div class="task-modal-field">
+            <span class="task-modal-label">Fact refs (optional)</span>
+            <select id="newTaskFactRefs" class="task-modal-input task-modal-multiselect" multiple size="3"></select>
+          </div>
+
+          <hr class="task-modal-rule" />
+
+          <div class="task-modal-meta-grid">
+            <label class="task-modal-field">
+              <span class="task-modal-label">Stat<span class="task-k">u</span>s</span>
+              <input type="text" class="task-modal-input" value="Todo [ ]" readonly />
+            </label>
+            <div class="task-modal-dual-row task-modal-meta-due">
+              <label class="task-modal-field task-modal-grow">
+                <span class="task-modal-label"><span class="task-k">C</span>reated</span>
+                <input type="text" id="taskModalCreatedText" class="task-modal-input" readonly />
+              </label>
+              <label class="task-modal-field task-modal-date-wrap">
+                <span class="task-modal-label task-modal-label-muted">Date</span>
+                <input type="date" id="taskModalCreatedDate" class="task-modal-input" readonly />
+              </label>
+            </div>
+            <label class="task-modal-field">
+              <span class="task-modal-label">Done (<span class="task-k">x</span>)</span>
+              <input type="text" class="task-modal-input task-modal-input-muted" placeholder="—" readonly />
+            </label>
+            <label class="task-modal-field">
+              <span class="task-modal-label">Cancelled (<span class="task-k">-</span>)</span>
+              <input type="text" class="task-modal-input task-modal-input-muted" placeholder="—" readonly />
+            </label>
+          </div>
+        </div>
+
+        <footer class="task-modal-footer">
+          <button type="button" id="createTaskBtn" class="task-modal-apply">Apply</button>
+          <button type="button" id="cancelTaskModalBtn" class="task-modal-cancel">Cancel</button>
+        </footer>
+      </div>
+    </div>
 
     <section id="commandPalette" class="drawer hidden">
       <div class="drawer-head">

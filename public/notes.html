@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Second Brain — Personal vault</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/notes.css" />
+  </head>
+  <body class="vault-app">
+    <aside class="vault-sidebar" aria-label="Vault navigation">
+      <div class="vault-brand">
+        <div class="vault-brand-icon" aria-hidden="true">
+          <span class="material-symbols-outlined">hub</span>
+        </div>
+        <div class="vault-brand-text">
+          <span class="vault-brand-title">Second Brain</span>
+          <span class="vault-brand-sub">Personal vault</span>
+        </div>
+      </div>
+
+      <button type="button" id="btnNewNote" class="vault-btn-new">
+        <span class="material-symbols-outlined vault-ms" aria-hidden="true">add</span>
+        New Note
+      </button>
+
+      <nav class="vault-side-nav" aria-label="Primary">
+        <button type="button" class="vault-side-link active" id="navSideFiles" data-side="files" data-panel="reader">
+          <span class="material-symbols-outlined vault-ms" aria-hidden="true">folder_open</span>
+          Files
+        </button>
+        <button type="button" class="vault-side-link" id="navSideSearch" data-side="search">
+          <span class="material-symbols-outlined vault-ms" aria-hidden="true">search</span>
+          Search
+        </button>
+        <button type="button" class="vault-side-link" id="navSideStarred" data-side="starred">
+          <span class="material-symbols-outlined vault-ms" aria-hidden="true">bookmark</span>
+          Bookmarks
+        </button>
+        <button type="button" class="vault-side-link" id="navSideGraph" data-side="graph" data-panel="graph">
+          <span class="material-symbols-outlined vault-ms" aria-hidden="true">hub</span>
+          Graph
+        </button>
+        <button type="button" class="vault-side-link" id="navSideSettings" data-side="settings">
+          <span class="material-symbols-outlined vault-ms" aria-hidden="true">settings</span>
+          Settings
+        </button>
+      </nav>
+
+      <div class="vault-workspace-head">
+        <span class="vault-workspace-label">Workspace</span>
+      </div>
+      <div class="vault-tree-scroll">
+        <ul id="searchHits" class="vault-search-hits hidden" aria-label="Search results"></ul>
+        <div id="vaultTreeHost" class="vault-tree-host">
+          <nav id="vaultTree" class="vault-tree" aria-label="Vault files"></nav>
+        </div>
+        <div id="starredListHost" class="vault-starred-host hidden">
+          <p class="vault-starred-hint">Starred notes appear here. Open a note and click the star beside the title.</p>
+          <ul id="starredList" class="vault-starred-list"></ul>
+        </div>
+        <div id="sharedPlaceholder" class="vault-shared-placeholder hidden">
+          <p>Shared links and collaboration are not enabled for this local vault.</p>
+        </div>
+      </div>
+
+      <footer class="vault-sidebar-footer">
+        <a class="vault-footer-link" href="/">Dashboard</a>
+        <a class="vault-footer-link" href="#" id="vaultHelpLink">
+          <span class="material-symbols-outlined vault-ms vault-ms-inline" aria-hidden="true">help</span>
+          Help
+        </a>
+        <div class="vault-user-chip">
+          <div class="vault-user-avatar" aria-hidden="true"></div>
+          <div class="vault-user-meta">
+            <span class="vault-user-name">Local</span>
+            <span class="vault-user-plan">Offline vault</span>
+          </div>
+        </div>
+      </footer>
+    </aside>
+
+    <div class="vault-main-area">
+      <div id="panelReader" class="vault-panel-reader">
+        <header class="vault-main-top">
+          <div class="vault-main-top-left">
+            <span class="vault-app-crumb">Obsidian Nocturne</span>
+            <span class="vault-main-top-divider" aria-hidden="true"></span>
+            <div class="vault-view-tabs" role="tablist" aria-label="Note collections">
+              <button type="button" class="vault-view-tab active" data-view="recent" role="tab" aria-selected="true">RECENT</button>
+              <button type="button" class="vault-view-tab" data-view="starred" role="tab" aria-selected="false">STARRED</button>
+              <button type="button" class="vault-view-tab" data-view="shared" role="tab" aria-selected="false">SHARED</button>
+            </div>
+          </div>
+          <div class="vault-main-top-right">
+            <label class="vault-search-main-wrap">
+              <span class="sr-only">Search vault</span>
+              <span class="material-symbols-outlined vault-search-icon" aria-hidden="true">search</span>
+              <input type="search" id="vaultSearch" class="vault-search-main" placeholder="Search vault…" autocomplete="off" />
+            </label>
+            <button type="button" class="vault-icon-btn" id="btnToggleInspector" title="Toggle backlinks panel" aria-pressed="true">
+              <span class="material-symbols-outlined vault-ms" aria-hidden="true">vertical_split</span>
+            </button>
+            <span id="vaultFlash" class="vault-top-flash" role="status"></span>
+            <button type="button" class="vault-icon-btn vault-icon-btn-muted" title="Status" aria-label="Status">
+              <span class="material-symbols-outlined vault-ms" aria-hidden="true">info</span>
+            </button>
+            <button type="button" class="vault-icon-btn vault-icon-btn-muted" title="More" aria-label="More">
+              <span class="material-symbols-outlined vault-ms" aria-hidden="true">more_vert</span>
+            </button>
+          </div>
+        </header>
+
+        <div class="vault-reader-split">
+          <div class="vault-doc-column">
+            <div class="vault-doc-meta-row">
+              <div id="breadcrumbs" class="vault-path-crumbs" aria-label="Path"></div>
+              <div class="vault-doc-badges">
+                <span id="badgeEditing" class="vault-badge vault-badge-amber hidden">EDITING</span>
+                <span id="badgeReadTime" class="vault-badge"></span>
+                <span class="vault-badge vault-badge-sync">LIVE SYNC</span>
+              </div>
+            </div>
+
+            <div class="vault-title-row">
+              <h1 id="noteTitle" class="vault-doc-title"></h1>
+              <button type="button" id="btnStarNote" class="vault-star-btn" title="Star note" aria-label="Star note" aria-pressed="false">☆</button>
+            </div>
+            <div id="noteTags" class="vault-tag-row hidden" aria-label="Tags"></div>
+
+            <div class="vault-action-bar">
+              <button type="button" id="btnEditNote" class="vault-chip-btn">Edit</button>
+              <button type="button" id="btnSaveNote" class="vault-chip-btn vault-chip-primary hidden">Save</button>
+              <button type="button" id="btnCancelEdit" class="vault-chip-btn hidden">Cancel</button>
+            </div>
+
+            <textarea id="noteEditor" class="vault-editor hidden" spellcheck="false" aria-label="Markdown source"></textarea>
+            <article id="noteBody" class="vault-prose prose"></article>
+
+            <div id="floatToolbar" class="vault-float-toolbar hidden" aria-label="Format">
+              <button type="button" class="vault-ft-btn" data-cmd="bold" title="Bold">
+                <span class="material-symbols-outlined vault-ms" aria-hidden="true">format_bold</span>
+              </button>
+              <button type="button" class="vault-ft-btn" data-cmd="italic" title="Italic">
+                <span class="material-symbols-outlined vault-ms" aria-hidden="true">format_italic</span>
+              </button>
+              <button type="button" class="vault-ft-btn" data-cmd="link" title="Link">
+                <span class="material-symbols-outlined vault-ms" aria-hidden="true">link</span>
+              </button>
+              <span class="vault-ft-divider" aria-hidden="true"></span>
+              <button type="button" class="vault-ft-btn" data-cmd="list" title="List">
+                <span class="material-symbols-outlined vault-ms" aria-hidden="true">list</span>
+              </button>
+              <button type="button" class="vault-ft-btn" data-cmd="image" title="Image">
+                <span class="material-symbols-outlined vault-ms" aria-hidden="true">image</span>
+              </button>
+              <span class="vault-ft-divider" aria-hidden="true"></span>
+              <button type="button" id="btnPublishStub" class="vault-ft-publish">
+                <span class="material-symbols-outlined vault-ms" aria-hidden="true">publish</span>
+                Publish
+              </button>
+            </div>
+          </div>
+
+          <aside id="vaultInspector" class="vault-inspector">
+            <h2 class="vault-inspector-title">Backlinks</h2>
+            <ul id="backlinkList" class="vault-link-list"></ul>
+            <h2 class="vault-inspector-title">Outgoing</h2>
+            <ul id="outgoingList" class="vault-link-list"></ul>
+          </aside>
+        </div>
+      </div>
+
+      <div class="vault-graph-panel hidden" id="panelGraph">
+        <div class="vault-graph-toolbar">
+          <button type="button" class="vault-chip-btn" id="backFromGraphBtn">← Files</button>
+          <p class="vault-graph-hint">Link graph from vault notes (resolved links solid; broken references below).</p>
+          <button type="button" id="refreshGraphBtn" class="vault-chip-btn">Refresh graph</button>
+        </div>
+        <div id="mermaidGraphHost" class="mermaid-graph-host"></div>
+        <ul id="brokenLinksList" class="notes-broken-list"></ul>
+      </div>
+    </div>
+
+    <dialog id="newNoteDialog" class="notes-dialog">
+      <h2 class="notes-dialog-title">New note</h2>
+      <label class="notes-dialog-field">
+        <span>Path (under vault/)</span>
+        <input type="text" id="newNotePath" required placeholder="Ideas/my-note.md" autocomplete="off" />
+      </label>
+      <label class="notes-dialog-field">
+        <span>Title (optional)</span>
+        <input type="text" id="newNoteTitle" placeholder="Frontmatter title" autocomplete="off" />
+      </label>
+      <p class="notes-form-hint">Must end in <code>.md</code>. Use <code>/</code> for subfolders.</p>
+      <div class="notes-dialog-actions">
+        <button type="button" id="newNoteCreateBtn" class="notes-tab-btn">Create</button>
+        <button type="button" id="newNoteCancelBtn" class="notes-tab-btn">Cancel</button>
+      </div>
+    </dialog>
+
+    <script type="module" src="/notes.js"></script>
+  </body>
+</html>

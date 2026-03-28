@@ -45,7 +45,8 @@ Markdown-first project and milestone tracker with dashboard UI, automation playb
 - `npm run review:weekly` -> weekly markdown report
 - `npm run alerts` -> threshold-based alert report
 - `npm run impact` -> impact report from git diffs
-- `npm run search:index` -> rebuild local search index
+- `npm run search:index` -> rebuild local search index (projects + vault notes)
+- `npm run vault:graph` -> refresh cached vault link graph (`.cache/vault-graph.json`)
 - `npm run migrate:schema` -> normalize schema version fields
 - `npm run pr:summary` -> generate project-focused PR summary
 - `npm run snapshot` -> write daily trend snapshot
@@ -58,6 +59,7 @@ Markdown-first project and milestone tracker with dashboard UI, automation playb
 
 ## Data and Layout
 
+- `vault/**/*.md` -> personal second-brain notes (wiki links, Mermaid, backlinks). Browse at [http://localhost:3000/notes.html](http://localhost:3000/notes.html) while `npm run dev` is running; use **New note** / **Edit** / **Save** in the UI, or open `vault/` in Obsidian.
 - `projects/<project-slug>/README.md` -> canonical metadata
 - `projects/<project-slug>/spec.md` -> requirements/spec
 - `projects/<project-slug>/research.md` -> research notes

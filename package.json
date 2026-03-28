@@ -15,6 +15,7 @@
     "migrate:schema": "node scripts/migrate-schema.mjs",
     "impact": "node scripts/impact-check.mjs",
     "search:index": "node scripts/build-search-index.mjs",
+    "vault:graph": "node scripts/vault-graph-cache.mjs",
     "pr:summary": "node scripts/pr-summary.mjs",
     "snapshot": "node scripts/snapshot.mjs",
     "ops:daily": "node scripts/run-ops.mjs --mode daily",
