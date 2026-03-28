@@ -30,10 +30,12 @@ import {
   buildVaultTree,
   createVaultNote,
   ensureVaultDir,
+  getVaultExcalidrawPayload,
   getVaultFilePayload,
   getVaultGraphWithOptionalDiskCache,
   getVaultIndexCached,
   listVaultMarkdownRelPaths,
+  listVaultTreeRelPaths,
   normalizeVaultRelPath,
   searchVaultNotes,
   writeVaultNote
@@ -135,9 +137,30 @@ async function createApp() {
 
   app.get("/api/vault/tree", async (_req, res) => {
     try {
-      const paths = await listVaultMarkdownRelPaths();
+      const paths = await listVaultTreeRelPaths();
       res.json({ paths, tree: buildVaultTree(paths) });
     } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.get("/api/vault/excalidraw", async (req, res) => {
+    try {
+      const payload = await getVaultExcalidrawPayload(req.query.path || "");
+      res.json(payload);
+    } catch (error) {
+      if (error.code === "VAULT_PATH_INVALID") {
+        res.status(400).json({ ok: false, error: error.message });
+        return;
+      }
+      if (error.code === "VAULT_NOT_FOUND") {
+        res.status(404).json({ ok: false, error: error.message });
+        return;
+      }
+      if (error.code === "VAULT_EXCALIDRAW_INVALID") {
+        res.status(400).json({ ok: false, error: error.message });
+        return;
+      }
       res.status(500).json({ ok: false, error: error.message });
     }
   });

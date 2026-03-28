@@ -21,6 +21,10 @@ flowchart LR
   B --> C[Backlinks]
 ```
 
+## Excalidraw sample
+
+![[diagrams/sample.excalidraw]]
+
 ## Dashboard
 
 Return to the [project dashboard](/).

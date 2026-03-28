@@ -27,6 +27,7 @@
     "mcp:smoke": "node scripts/mcp-smoke.mjs"
   },
   "dependencies": {
+    "@excalidraw/utils": "^0.1.2",
     "@modelcontextprotocol/sdk": "^1.17.4",
     "express": "^4.21.2",
     "gray-matter": "^4.0.3"

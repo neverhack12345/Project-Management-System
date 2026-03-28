@@ -58,6 +58,25 @@ export function resolveVaultAbs(relPath) {
   return abs;
 }
 
+/** @param {string|null|undefined} norm normalized vault-relative path */
+export function isExcalidrawVaultRelPath(norm) {
+  if (!norm) return false;
+  const l = norm.toLowerCase();
+  if (l.endsWith(".excalidraw.json")) return true;
+  return l.endsWith(".excalidraw");
+}
+
+/** @returns {string|null} absolute path under VAULT_DIR for an Excalidraw asset */
+export function resolveVaultExcalidrawAbs(relPath) {
+  const norm = normalizeVaultRelPath(relPath);
+  if (!norm || !isExcalidrawVaultRelPath(norm)) return null;
+  const root = path.resolve(VAULT_DIR);
+  const abs = path.resolve(root, norm);
+  const relative = path.relative(root, abs);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) return null;
+  return abs;
+}
+
 export async function ensureVaultDir() {
   await fs.mkdir(VAULT_DIR, { recursive: true });
 }
@@ -85,6 +104,42 @@ async function walkMarkdownFiles(dir, base = "") {
 export async function listVaultMarkdownRelPaths() {
   await ensureVaultDir();
   return walkMarkdownFiles(VAULT_DIR);
+}
+
+async function walkExcalidrawFiles(dir, base = "") {
+  const out = [];
+  let entries;
+  try {
+    entries = await fs.readdir(dir, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const entry of entries) {
+    const rel = base ? `${base}/${entry.name}` : entry.name;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...(await walkExcalidrawFiles(full, rel)));
+    } else if (entry.isFile()) {
+      const low = entry.name.toLowerCase();
+      if (low.endsWith(".excalidraw.json") || low.endsWith(".excalidraw")) {
+        out.push(rel.split(path.sep).join("/"));
+      }
+    }
+  }
+  return out.sort((a, b) => a.localeCompare(b));
+}
+
+export async function listVaultExcalidrawRelPaths() {
+  await ensureVaultDir();
+  return walkExcalidrawFiles(VAULT_DIR);
+}
+
+/** Markdown + Excalidraw leaves for the file tree (sorted, de-duplicated). */
+export async function listVaultTreeRelPaths() {
+  await ensureVaultDir();
+  const md = await walkMarkdownFiles(VAULT_DIR);
+  const ex = await walkExcalidrawFiles(VAULT_DIR);
+  return [...new Set([...md, ...ex])].sort((a, b) => a.localeCompare(b));
 }
 
 function firstMarkdownHeading(content) {
@@ -216,6 +271,168 @@ function resolveLinkTarget(fromRel, pathPart, pathSet, lookup) {
   }
 
   return { resolved: null, ambiguous: false, candidates: undefined };
+}
+
+function excalidrawFileStem(relPath) {
+  const base = relPath.split("/").pop() || "";
+  const l = base.toLowerCase();
+  if (l.endsWith(".excalidraw.json")) return base.slice(0, -".excalidraw.json".length);
+  if (l.endsWith(".excalidraw")) return base.slice(0, -".excalidraw".length);
+  return base.replace(/\.[^/.]+$/, "");
+}
+
+function buildExcalidrawLookup(exSet) {
+  const lookup = new Map();
+  for (const rel of exSet) {
+    const stem = excalidrawFileStem(rel).toLowerCase();
+    registerLookup(lookup, stem, rel);
+    registerLookup(lookup, slugify(stem), rel);
+    const base = rel.split("/").pop() || "";
+    registerLookup(lookup, base.toLowerCase(), rel);
+  }
+  return lookup;
+}
+
+/**
+ * @param {string} fromRel
+ * @param {string} pathPart
+ * @param {Set<string>} exSet
+ * @param {Map<string, string|string[]>} lookup
+ */
+function resolveExcalidrawTarget(fromRel, pathPart, exSet, lookup) {
+  const pp = pathPart.trim();
+  if (!pp) return { resolved: null, ambiguous: false, candidates: undefined };
+
+  const fromDir = posix.dirname(fromRel);
+  const tryList = [];
+  const addTry = (rel) => {
+    const n = normalizeVaultRelPath(posix.normalize(rel));
+    if (n && exSet.has(n) && !tryList.includes(n)) tryList.push(n);
+  };
+
+  addTry(posix.join(fromDir, pp));
+  addTry(posix.join(fromDir, `${pp}.excalidraw`));
+  addTry(posix.join(fromDir, `${pp}.excalidraw.json`));
+  addTry(pp);
+  addTry(`${pp}.excalidraw`);
+  addTry(`${pp}.excalidraw.json`);
+
+  if (tryList.length === 1) return { resolved: tryList[0], ambiguous: false, candidates: undefined };
+  if (tryList.length > 1) return { resolved: null, ambiguous: true, candidates: tryList };
+
+  const noSlash = !pp.includes("/") && !pp.startsWith(".");
+  if (noSlash) {
+    const withoutExt = pp.replace(/\.excalidraw\.json$/i, "").replace(/\.excalidraw$/i, "").toLowerCase();
+    const hit = lookup.get(withoutExt);
+    if (Array.isArray(hit)) return { resolved: null, ambiguous: true, candidates: hit };
+    if (hit) return { resolved: hit, ambiguous: false, candidates: undefined };
+
+    const slugHit = lookup.get(slugify(withoutExt));
+    if (Array.isArray(slugHit)) return { resolved: null, ambiguous: true, candidates: slugHit };
+    if (slugHit) return { resolved: slugHit, ambiguous: false, candidates: undefined };
+
+    const fullHit = lookup.get(pp.toLowerCase());
+    if (Array.isArray(fullHit)) return { resolved: null, ambiguous: true, candidates: fullHit };
+    if (fullHit) return { resolved: fullHit, ambiguous: false, candidates: undefined };
+  }
+
+  return { resolved: null, ambiguous: false, candidates: undefined };
+}
+
+function escapeAttrForVaultHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+}
+
+/**
+ * ```excalidraw\nrelative/path.excalidraw\n``` → embed div (resolved paths only).
+ */
+export function expandExcalidrawFenceEmbeds(body, fromRel, exSet, lookup) {
+  return String(body || "").replace(/```excalidraw\s*\n([\s\S]*?)```/gi, (full, inner) => {
+    const rel = inner.trim().split(/\n/)[0]?.trim() || "";
+    if (!rel) return full;
+    const { resolved, ambiguous } = resolveExcalidrawTarget(fromRel, rel, exSet, lookup);
+    if (resolved && !ambiguous) {
+      return `\n\n<div class="vault-excalidraw" data-vault-excalidraw="${escapeAttrForVaultHtml(resolved)}"></div>\n\n`;
+    }
+    return full;
+  });
+}
+
+/** Obsidian-style ![[diagram.excalidraw]] embeds → HTML div. */
+export function expandExcalidrawImageEmbeds(body, fromRel, exSet, lookup) {
+  return String(body || "").replace(/!\[\[([^\]]+)\]\]/g, (full, inner) => {
+    const trimmed = inner.trim();
+    const pipe = trimmed.indexOf("|");
+    const target = (pipe >= 0 ? trimmed.slice(0, pipe) : trimmed).trim();
+    const hashIdx = target.indexOf("#");
+    const pathPart = hashIdx >= 0 ? target.slice(0, hashIdx).trim() : target;
+    if (!pathPart) return full;
+    const { resolved, ambiguous } = resolveExcalidrawTarget(fromRel, pathPart, exSet, lookup);
+    if (resolved && !ambiguous) {
+      return `\n\n<div class="vault-excalidraw" data-vault-excalidraw="${escapeAttrForVaultHtml(resolved)}"></div>\n\n`;
+    }
+    return full;
+  });
+}
+
+export async function readVaultExcalidrawJson(relPath) {
+  const norm = normalizeVaultRelPath(relPath);
+  if (!norm || !isExcalidrawVaultRelPath(norm)) {
+    const err = new Error("Invalid vault path");
+    err.code = "VAULT_PATH_INVALID";
+    throw err;
+  }
+  const abs = resolveVaultExcalidrawAbs(norm);
+  if (!abs) {
+    const err = new Error("Invalid vault path");
+    err.code = "VAULT_PATH_INVALID";
+    throw err;
+  }
+  let raw;
+  try {
+    raw = await fs.readFile(abs, "utf8");
+  } catch (e) {
+    if (e && e.code === "ENOENT") {
+      const err = new Error("Note not found");
+      err.code = "VAULT_NOT_FOUND";
+      throw err;
+    }
+    throw e;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    const err = new Error("Invalid Excalidraw JSON");
+    err.code = "VAULT_EXCALIDRAW_INVALID";
+    throw err;
+  }
+  if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.elements)) {
+    const err = new Error("Invalid Excalidraw JSON");
+    err.code = "VAULT_EXCALIDRAW_INVALID";
+    throw err;
+  }
+  if (parsed.type != null && parsed.type !== "excalidraw") {
+    const err = new Error("Invalid Excalidraw JSON");
+    err.code = "VAULT_EXCALIDRAW_INVALID";
+    throw err;
+  }
+  return { path: norm, scene: parsed };
+}
+
+export async function getVaultExcalidrawPayload(relPath) {
+  const { path, scene } = await readVaultExcalidrawJson(relPath);
+  return {
+    path,
+    scene: {
+      type: scene.type ?? "excalidraw",
+      version: scene.version ?? 2,
+      source: scene.source,
+      elements: scene.elements,
+      appState: scene.appState ?? {},
+      files: scene.files ?? {}
+    }
+  };
 }
 
 export async function readVaultMarkdown(relPath) {
@@ -395,7 +612,13 @@ export async function getVaultFilePayload(relPath) {
   const pathSet = new Set(index.paths);
   const metaByPath = new Map(index.paths.map((p) => [p, index.notes[p]]));
   const lookup = buildLookup(pathSet, metaByPath);
-  const previewMarkdown = expandWikiLinksForPreview(note.content, norm, pathSet, lookup);
+  const excalidrawPaths = await listVaultExcalidrawRelPaths();
+  const exSet = new Set(excalidrawPaths);
+  const exLookup = buildExcalidrawLookup(exSet);
+  let previewBody = note.content;
+  previewBody = expandExcalidrawFenceEmbeds(previewBody, norm, exSet, exLookup);
+  previewBody = expandExcalidrawImageEmbeds(previewBody, norm, exSet, exLookup);
+  const previewMarkdown = expandWikiLinksForPreview(previewBody, norm, pathSet, lookup);
   return {
     path: note.path,
     content: note.content,
@@ -490,7 +713,14 @@ export async function createVaultNote(relPath, opts = {}) {
   return { path: norm, abs, updatedFile: path.relative(ROOT, abs).split(path.sep).join("/") };
 }
 
-/** Nested tree: { name, path?, children? }[] */
+/** @param {string} relPath */
+export function vaultLeafKind(relPath) {
+  const l = relPath.toLowerCase();
+  if (l.endsWith(".excalidraw.json") || l.endsWith(".excalidraw")) return "excalidraw";
+  return "md";
+}
+
+/** Nested tree: { name, path?, kind?, children? }[] */
 export function buildVaultTree(paths) {
   const root = { name: "", children: [] };
 
@@ -512,7 +742,8 @@ export function buildVaultTree(paths) {
     const parent = folder.length ? ensure(folder, root) : root;
     parent.children.push({
       name: fileName,
-      path: rel
+      path: rel,
+      kind: vaultLeafKind(rel)
     });
   }
 
@@ -531,10 +762,10 @@ export function buildVaultTree(paths) {
 }
 
 async function maxVaultMtimeMs() {
-  const paths = await listVaultMarkdownRelPaths();
+  const paths = await listVaultTreeRelPaths();
   let max = 0;
   for (const rel of paths) {
-    const abs = resolveVaultAbs(rel);
+    const abs = rel.toLowerCase().endsWith(".md") ? resolveVaultAbs(rel) : resolveVaultExcalidrawAbs(rel);
     if (!abs) continue;
     try {
       const st = await fs.stat(abs);

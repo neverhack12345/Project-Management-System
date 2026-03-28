@@ -59,7 +59,7 @@ Markdown-first project and milestone tracker with dashboard UI, automation playb
 
 ## Data and Layout
 
-- `vault/**/*.md` -> personal second-brain notes (wiki links, Mermaid, backlinks). Browse at [http://localhost:3000/notes.html](http://localhost:3000/notes.html) while `npm run dev` is running; use **New note** / **Edit** / **Save** in the UI, or open `vault/` in Obsidian.
+- `vault/**/*.md` -> personal second-brain notes (wiki links, Mermaid, backlinks). Browse at [http://localhost:3000/notes.html](http://localhost:3000/notes.html) while `npm run dev` is running; use **New note** / **Edit** / **Save** in the UI, or open `vault/` in Obsidian. Embed Excalidraw diagrams in preview with Obsidian-style `![[path/to/file.excalidraw]]` (or a fenced ` ```excalidraw` block with a vault-relative path on the first line).
 - `projects/<project-slug>/README.md` -> canonical metadata
 - `projects/<project-slug>/spec.md` -> requirements/spec
 - `projects/<project-slug>/research.md` -> research notes

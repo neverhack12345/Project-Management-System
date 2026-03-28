@@ -939,6 +939,32 @@
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06), 0 0 48px rgba(139, 92, 246, 0.12);
 }
 
+.vault-prose .vault-excalidraw,
+.vault-excalidraw-viewer {
+  margin: 1.25em 0;
+  max-width: 100%;
+  border-radius: 12px;
+  overflow: auto;
+  background: var(--vault-surface);
+  border: 1px solid var(--vault-border);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06), 0 0 48px rgba(139, 92, 246, 0.12);
+  padding: 12px;
+}
+
+.vault-prose .vault-excalidraw svg,
+.vault-excalidraw-viewer svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.vault-excalidraw-error {
+  margin: 0;
+  padding: 10px 12px;
+  color: var(--vault-text-muted, #a1a1aa);
+  font-size: 0.9rem;
+}
+
 /* Floating toolbar */
 .vault-float-toolbar {
   position: fixed;

@@ -143,7 +143,7 @@ function renderStarredList() {
     a.textContent = p;
     a.addEventListener("click", (e) => {
       e.preventDefault();
-      loadNote(p);
+      openVaultPath(p);
     });
     li.appendChild(a);
     starredListEl.appendChild(li);
@@ -259,7 +259,7 @@ function rewriteRelativeMarkdownLinks(html, fromPath) {
 
 function sanitizeNoteHtml(html) {
   return DOMPurify.sanitize(html, {
-    ADD_ATTR: ["data-vault-path", "data-vault-broken", "class"],
+    ADD_ATTR: ["data-vault-path", "data-vault-broken", "data-vault-excalidraw", "class"],
     ADD_TAGS: ["details", "summary"],
     ALLOW_UNKNOWN_PROTOCOLS: false
   });
@@ -285,6 +285,64 @@ async function runMermaidIn(rootEl) {
   }
 }
 
+async function hydrateExcalidrawEmbeds(rootEl) {
+  const exportToSvg = globalThis.ExcalidrawUtils?.exportToSvg;
+  const nodes = rootEl.querySelectorAll("[data-vault-excalidraw]");
+  if (!nodes.length) return;
+  if (typeof exportToSvg !== "function") {
+    for (const el of nodes) {
+      el.innerHTML = '<p class="vault-excalidraw-error">Excalidraw library failed to load.</p>';
+    }
+    return;
+  }
+  for (const el of nodes) {
+    const p = el.getAttribute("data-vault-excalidraw");
+    if (!p) continue;
+    el.innerHTML = '<p class="muted">Loading diagram…</p>';
+    try {
+      const res = await fetch(`/api/vault/excalidraw?path=${encodeURIComponent(p)}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        el.innerHTML = `<p class="vault-excalidraw-error">${escapeAttr(data.error || `Failed (${res.status})`)}</p>`;
+        continue;
+      }
+      const scene = data.scene;
+      if (!scene || !Array.isArray(scene.elements)) {
+        el.innerHTML = '<p class="vault-excalidraw-error">Invalid diagram data</p>';
+        continue;
+      }
+      const svg = await exportToSvg({
+        elements: scene.elements,
+        appState: scene.appState || {},
+        files: scene.files || {}
+      });
+      el.innerHTML = "";
+      if (svg && String(svg.nodeName || "").toLowerCase() === "svg") {
+        el.appendChild(svg);
+      } else {
+        el.innerHTML = '<p class="vault-excalidraw-error">Could not render diagram</p>';
+      }
+    } catch (e) {
+      el.innerHTML = `<p class="vault-excalidraw-error">${escapeAttr(e.message || String(e))}</p>`;
+    }
+  }
+}
+
+function isExcalidrawVaultPath(p) {
+  const lower = String(p || "").toLowerCase();
+  if (lower.endsWith(".excalidraw.json")) return true;
+  return lower.endsWith(".excalidraw");
+}
+
+function openVaultPath(p) {
+  if (!p) return;
+  if (isExcalidrawVaultPath(p)) {
+    loadExcalidrawViewer(p);
+    return;
+  }
+  if (p.toLowerCase().endsWith(".md")) loadNote(p);
+}
+
 function renderTree(nodes, depth = 0) {
   const ul = document.createElement("ul");
   for (const node of nodes) {
@@ -298,7 +356,11 @@ function renderTree(nodes, depth = 0) {
       if (node.path === currentPath) a.classList.add("active");
       a.addEventListener("click", (e) => {
         e.preventDefault();
-        loadNote(node.path);
+        const kind =
+          node.kind ||
+          (isExcalidrawVaultPath(node.path) ? "excalidraw" : "md");
+        if (kind === "excalidraw") loadExcalidrawViewer(node.path);
+        else loadNote(node.path);
       });
       li.appendChild(a);
     } else {
@@ -401,6 +463,38 @@ function renderOutgoing(el, items) {
   }
 }
 
+async function loadExcalidrawViewer(relPath) {
+  if (!relPath || !isExcalidrawVaultPath(relPath)) return;
+  if (isEditing && noteEditorEl.value !== currentSource) {
+    if (!window.confirm("Discard unsaved changes?")) return;
+  }
+  exitEditModeSilent();
+  currentPath = relPath;
+  currentSource = "";
+  const baseName = relPath.includes("/") ? relPath.slice(relPath.lastIndexOf("/") + 1) : relPath;
+  noteTitleEl.textContent = baseName;
+  btnEditNote.disabled = true;
+  renderNoteTags([]);
+  if (badgeReadTime) badgeReadTime.textContent = "";
+  updateStarButton();
+  renderBreadcrumbs(relPath);
+
+  const safePath = escapeAttr(relPath);
+  noteBodyEl.innerHTML = sanitizeNoteHtml(
+    `<div class="vault-excalidraw vault-excalidraw-viewer" data-vault-excalidraw="${safePath}"></div>`
+  );
+
+  promoteMermaidBlocks(noteBodyEl);
+  await runMermaidIn(noteBodyEl);
+  await hydrateExcalidrawEmbeds(noteBodyEl);
+
+  renderLinkList(backlinkListEl, [], "No backlinks for diagram files");
+  renderOutgoing(outgoingListEl, [], "No outgoing links");
+
+  await refreshTree();
+  history.replaceState(null, "", `${window.location.pathname}?path=${encodeURIComponent(relPath)}`);
+}
+
 async function loadNote(relPath) {
   if (!relPath || !relPath.toLowerCase().endsWith(".md")) return;
   if (isEditing && noteEditorEl.value !== currentSource) {
@@ -437,6 +531,7 @@ async function loadNote(relPath) {
 
   promoteMermaidBlocks(noteBodyEl);
   await runMermaidIn(noteBodyEl);
+  await hydrateExcalidrawEmbeds(noteBodyEl);
 
   renderLinkList(backlinkListEl, data.backlinks, "No backlinks yet");
   renderOutgoing(outgoingListEl, data.outgoing);
@@ -774,15 +869,16 @@ async function boot() {
   const params = new URLSearchParams(window.location.search);
   const pathParam = params.get("path");
   await refreshTree();
-  if (pathParam && pathParam.toLowerCase().endsWith(".md")) {
-    await loadNote(pathParam);
+  if (pathParam) {
+    if (pathParam.toLowerCase().endsWith(".md")) await loadNote(pathParam);
+    else if (isExcalidrawVaultPath(pathParam)) await loadExcalidrawViewer(pathParam);
   } else {
     const res = await fetch("/api/vault/tree");
     const data = await res.json();
     const first =
       data.paths?.find((p) => p === "Welcome.md") ||
       data.paths?.find((p) => /(^|\/)welcome\.md$/i.test(p)) ||
-      data.paths?.[0];
+      data.paths?.find((p) => p.toLowerCase().endsWith(".md"));
     if (first) await loadNote(first);
     else {
       currentPath = "";
