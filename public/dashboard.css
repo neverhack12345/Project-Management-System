@@ -1,0 +1,303 @@
+/* Markdown Project Dashboard — shell + Nocturne tokens (scoped to .dash-app) */
+
+body.vault-app.dash-app {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.dash-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+}
+
+.dash-main-inner {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Scroll region fills space below sticky-style header */
+.dash-app .dash-main-inner > .vault-doc-column {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Sidebar: tab buttons use vault-side-link; reset global .tab-btn pill styles */
+.dash-app .vault-sidebar .tab-btn {
+  border-radius: 8px;
+  border: none;
+  font-weight: inherit;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+.dash-app .vault-sidebar .tab-btn:hover {
+  transform: none;
+  box-shadow: none;
+}
+.dash-app .vault-sidebar .tab-btn.active {
+  background: var(--vault-container-high);
+  color: var(--vault-tertiary);
+  border-left-color: var(--vault-tertiary);
+}
+
+.dash-sidebar-hint {
+  flex: 0 1 auto;
+  max-height: 120px;
+}
+
+/* Pin footer (links + user chip) to the bottom of the sidebar */
+.dash-app .vault-sidebar > .vault-sidebar-footer {
+  margin-top: auto;
+  flex-shrink: 0;
+}
+
+.dash-workspace-hint {
+  margin: 0 8px 0 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--vault-muted);
+  opacity: 0.9;
+}
+
+.dash-app .vault-doc-meta-row {
+  margin-bottom: 8px;
+}
+
+.dash-meta-tagline {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--vault-muted);
+  opacity: 0.65;
+}
+
+.dash-flash {
+  color: var(--vault-primary);
+}
+
+.dash-flash.error,
+.dash-app #flash.error {
+  color: #f87171;
+}
+
+/* Kill legacy centered column rules inside dashboard */
+.dash-app header,
+.dash-app .controls,
+.dash-app main,
+.dash-app .dash-panels {
+  max-width: none;
+  margin: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.dash-app .controls {
+  padding-top: 0;
+  padding-bottom: 16px;
+}
+
+.dash-app .vault-doc-column .controls {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Controls + fields */
+.dash-app .controls-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.dash-app .controls input,
+.dash-app .controls select,
+.dash-app .controls button {
+  background: var(--vault-container-low);
+  color: var(--vault-text);
+  border: 1px solid var(--vault-border);
+  border-radius: var(--vault-radius);
+}
+
+.dash-app .controls button:hover {
+  border-color: rgba(206, 189, 255, 0.35);
+  color: var(--vault-text);
+}
+
+.dash-app .controls button:focus-visible,
+.dash-app .controls input:focus-visible,
+.dash-app .controls select:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px rgba(206, 189, 255, 0.4);
+}
+
+/* Tab panels in main scroll region */
+.dash-app .dash-panels .tab-panel {
+  gap: 20px;
+}
+
+.dash-app .tab-btn.active {
+  /* sidebar active uses vault-side-link; horizontal tabs if any */
+  background: var(--vault-container-high);
+}
+
+/* Cards */
+.dash-app .card {
+  background: var(--vault-container-low);
+  border: 1px solid var(--vault-border);
+  border-radius: 12px;
+  color: var(--vault-text);
+}
+
+.dash-app .card h2,
+.dash-app .card h3 {
+  font-family: var(--vault-font-headline);
+  color: var(--vault-text);
+}
+
+.dash-app .helper-text {
+  color: var(--vault-muted);
+}
+
+.dash-app .history {
+  color: var(--vault-text);
+}
+
+/* Kanban */
+.dash-app .kanban-board {
+  gap: 12px;
+}
+
+.dash-app .kanban-lane {
+  background: var(--vault-container-low);
+  border: 1px solid var(--vault-border);
+  border-radius: 12px;
+}
+
+.dash-app .kanban-lane h3 {
+  color: var(--vault-primary);
+}
+
+.dash-app .kanban-task {
+  background: var(--vault-container);
+  border: 1px solid var(--vault-border);
+  color: var(--vault-text);
+}
+
+/* Calendar */
+.dash-app .calendar-day {
+  background: var(--vault-container-low);
+  border: 1px solid var(--vault-border);
+  color: var(--vault-text);
+}
+
+.dash-app .calendar-event {
+  border-radius: 6px;
+}
+
+/* Gantt */
+.dash-app .gantt {
+  color: var(--vault-text);
+}
+
+/* Timeline legend */
+.dash-app .timeline-legend {
+  color: var(--vault-muted);
+}
+
+/* Fixed modal overlays */
+.dash-app .dash-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  margin: 0;
+  max-width: none;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 0;
+  background: rgba(6, 14, 32, 0.78);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: max(24px, 5vh) 20px 40px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.dash-app .dash-modal-overlay.hidden {
+  display: none !important;
+}
+
+.dash-app .dash-modal-overlay .drawer-head {
+  width: min(560px, 100%);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.dash-app .dash-modal-overlay .drawer-head h2 {
+  margin: 0;
+  font-family: var(--vault-font-headline);
+  font-size: 1.1rem;
+  color: var(--vault-text);
+}
+
+.dash-app .dash-modal-overlay .drawer-head button {
+  background: var(--vault-container-low);
+  color: var(--vault-text);
+  border: 1px solid var(--vault-border);
+}
+
+.dash-app .dash-command-palette input {
+  width: min(560px, 100%);
+  box-sizing: border-box;
+  background: var(--vault-container-low);
+  border: 1px solid var(--vault-border);
+  color: var(--vault-text);
+  border-radius: var(--vault-radius);
+  padding: 10px 12px;
+}
+
+.dash-app .dash-modal-overlay ul.history {
+  width: min(560px, 100%);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--vault-container-low);
+  border: 1px solid var(--vault-border);
+  border-radius: var(--vault-radius);
+  max-height: min(60vh, 480px);
+  overflow-y: auto;
+}
+
+.dash-app .dash-modal-overlay ul.history li {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--vault-border);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.dash-app .dash-modal-overlay ul.history li:last-child {
+  border-bottom: none;
+}
+
+.dash-app .dash-modal-overlay ul.history li:hover {
+  background: var(--vault-container-high);
+}
+
+/* Wider search in dashboard header */
+.dash-app .vault-main-top .vault-search-main {
+  width: min(280px, 40vw);
+}
+
+@media (max-width: 960px) {
+  .dash-app .vault-main-top .vault-search-main {
+    width: min(200px, 50vw);
+  }
+}

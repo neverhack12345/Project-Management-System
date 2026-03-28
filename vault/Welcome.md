@@ -25,6 +25,6 @@ flowchart LR
 
 ![[diagrams/sample.excalidraw]]
 
-## Dashboard
+## Markdown Projects
 
-Return to the [project dashboard](/).
+Return to [Markdown Projects](/).

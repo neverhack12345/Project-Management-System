@@ -1708,11 +1708,11 @@ for (const btn of focusBtns) {
 for (const btn of tabButtons) {
   btn.addEventListener("click", () => setActiveTab(btn.dataset.tab));
   btn.addEventListener("keydown", (event) => {
-    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
     event.preventDefault();
     const list = [...tabButtons];
     const currentIndex = list.indexOf(btn);
-    const delta = event.key === "ArrowRight" ? 1 : -1;
+    const delta = event.key === "ArrowDown" ? 1 : -1;
     const nextIndex = (currentIndex + delta + list.length) % list.length;
     const next = list[nextIndex];
     next.focus();
@@ -1729,3 +1729,32 @@ applyDigestPrefs(readDigestPrefs());
 renderSavedViews();
 clearCreateTaskForm();
 refresh();
+
+function initDashboardScrollChrome() {
+  const docCol = document.querySelector(".dash-app .dash-dashboard-scroll");
+  const mainTop = document.querySelector(".dash-app .vault-main-top");
+  if (!docCol || !mainTop) return;
+  let scrollTimer = null;
+  const onScroll = () => {
+    mainTop.classList.toggle("is-doc-scrolled", docCol.scrollTop > 20);
+    docCol.classList.add("is-scrolling");
+    window.clearTimeout(scrollTimer);
+    scrollTimer = window.setTimeout(() => {
+      docCol.classList.remove("is-scrolling");
+    }, 1500);
+  };
+  docCol.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+}
+
+initDashboardScrollChrome();
+
+document.getElementById("dashCommandPaletteBtn")?.addEventListener("click", () => {
+  commandPaletteBtn?.click();
+});
+
+document.getElementById("dashHelpLink")?.addEventListener("click", (e) => {
+  e.preventDefault();
+  flash.textContent =
+    "Search and filters: scroll above. Command palette: sidebar button or ⌃/⌘K. Sections: left nav. Escape closes overlays.";
+});

@@ -3,19 +3,148 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Markdown Project Dashboard</title>
+    <title>Markdown Projects</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/notes.css" />
+    <link rel="stylesheet" href="/dashboard.css" />
   </head>
-  <body>
-    <header>
-      <div class="header-bar">
-        <h1>Markdown Project Dashboard</h1>
-        <a class="header-notes-link" href="/notes.html">Note taking</a>
-      </div>
-      <p class="header-tagline">Projects, milestones, calendar, and gantt from markdown files.</p>
-    </header>
+  <body class="vault-app dash-app">
+    <div class="dash-layout">
+      <aside class="vault-sidebar" aria-label="Markdown Projects navigation">
+        <div class="vault-brand">
+          <div class="vault-brand-icon" aria-hidden="true">
+            <span class="material-symbols-outlined">dashboard</span>
+          </div>
+          <div class="vault-brand-text">
+            <span class="vault-brand-title">Markdown Projects</span>
+            <span class="vault-brand-sub">From markdown files</span>
+          </div>
+        </div>
+        <button type="button" id="dashCommandPaletteBtn" class="vault-btn-new">
+          <span class="material-symbols-outlined vault-ms" aria-hidden="true">terminal</span>
+          Command palette
+        </button>
+        <nav class="vault-side-nav" role="tablist" aria-label="Markdown Projects sections">
+          <button
+            type="button"
+            class="vault-side-link tab-btn active"
+            id="tabBtnOverview"
+            role="tab"
+            aria-selected="true"
+            aria-controls="tabOverview"
+            data-tab="overview"
+          >
+            <span class="material-symbols-outlined vault-ms" aria-hidden="true">analytics</span>
+            Overview
+          </button>
+          <button
+            type="button"
+            class="vault-side-link tab-btn"
+            id="tabBtnProjects"
+            role="tab"
+            aria-selected="false"
+            aria-controls="tabProjects"
+            data-tab="projects"
+          >
+            <span class="material-symbols-outlined vault-ms" aria-hidden="true">folder_open</span>
+            Projects
+          </button>
+          <button
+            type="button"
+            class="vault-side-link tab-btn"
+            id="tabBtnTimeline"
+            role="tab"
+            aria-selected="false"
+            aria-controls="tabTimeline"
+            data-tab="timeline"
+          >
+            <span class="material-symbols-outlined vault-ms" aria-hidden="true">calendar_month</span>
+            Timeline
+          </button>
+          <button
+            type="button"
+            class="vault-side-link tab-btn"
+            id="tabBtnOperations"
+            role="tab"
+            aria-selected="false"
+            aria-controls="tabOperations"
+            data-tab="operations"
+          >
+            <span class="material-symbols-outlined vault-ms" aria-hidden="true">settings</span>
+            Operations
+          </button>
+        </nav>
+        <div class="vault-workspace-head">
+          <span class="vault-workspace-label">Workspace</span>
+        </div>
+        <div class="vault-tree-scroll dash-sidebar-hint">
+          <p class="dash-workspace-hint">Use filters below, then switch tabs for overview, kanban, calendar, and ops.</p>
+        </div>
+        <footer class="vault-sidebar-footer">
+          <a class="vault-footer-link" href="/notes.html">Second Brain</a>
+          <a class="vault-footer-link" href="#" id="dashHelpLink">Help</a>
+          <div class="vault-user-chip">
+            <div class="vault-user-avatar" aria-hidden="true"></div>
+            <div class="vault-user-meta">
+              <span class="vault-user-name">Local</span>
+              <span class="vault-user-plan">Offline projects</span>
+            </div>
+          </div>
+        </footer>
+      </aside>
 
-    <section class="controls controls-grid">
+      <div class="vault-main-area">
+        <div class="dash-main-inner vault-panel-reader">
+          <header class="vault-main-top">
+            <div class="vault-main-top-left">
+              <span class="vault-app-crumb">Project Desk</span>
+              <span class="vault-main-top-divider" aria-hidden="true"></span>
+            </div>
+            <div class="vault-main-top-right">
+              <label class="vault-search-main-wrap">
+                <span class="sr-only">Search projects</span>
+                <span class="material-symbols-outlined vault-search-icon" aria-hidden="true">search</span>
+                <input
+                  id="search"
+                  class="vault-search-main"
+                  type="search"
+                  placeholder="Search projects…"
+                  title="Search projects by name or slug"
+                  autocomplete="off"
+                />
+              </label>
+              <button type="button" class="vault-icon-btn" id="refreshBtn" title="Refresh data" aria-label="Refresh">
+                <span class="material-symbols-outlined vault-ms" aria-hidden="true">refresh</span>
+              </button>
+              <button
+                type="button"
+                class="vault-icon-btn"
+                id="commandPaletteBtn"
+                title="Ctrl/Cmd+K"
+                aria-label="Command palette"
+              >
+                <span class="material-symbols-outlined vault-ms" aria-hidden="true">terminal</span>
+              </button>
+            </div>
+          </header>
+
+          <div class="vault-doc-column dash-dashboard-scroll">
+            <div class="vault-doc-meta-row">
+              <div class="vault-path-crumbs dash-meta-tagline">Projects · milestones · calendar · gantt</div>
+              <span id="flash" class="vault-top-flash dash-flash"></span>
+            </div>
+
+            <section class="controls controls-grid">
       <div class="control-group">
         <label class="field field-full">
           <span>Search projects</span>
@@ -48,11 +177,9 @@
         <div class="field actions-inline">
           <span>Views</span>
           <div class="row">
-            <button id="saveViewBtn">Save View</button>
+            <button type="button" id="saveViewBtn">Save View</button>
             <select id="savedViews"></select>
-            <button id="deleteViewBtn">Delete View</button>
-            <button id="refreshBtn">Refresh</button>
-            <button id="commandPaletteBtn" title="Ctrl/Cmd+K">Command Palette</button>
+            <button type="button" id="deleteViewBtn">Delete View</button>
           </div>
         </div>
       </div>
@@ -102,34 +229,16 @@
         <div class="field">
           <span>Focus filters</span>
           <div class="row">
-            <button class="focusBtn" data-focus="DueSoon">DueSoon</button>
-            <button class="focusBtn" data-focus="Blocked">Blocked</button>
-            <button class="focusBtn" data-focus="Overdue">Overdue</button>
-            <button class="focusBtn" data-focus="NeedsUpdate">NeedsUpdate</button>
+            <button type="button" class="focusBtn" data-focus="DueSoon">DueSoon</button>
+            <button type="button" class="focusBtn" data-focus="Blocked">Blocked</button>
+            <button type="button" class="focusBtn" data-focus="Overdue">Overdue</button>
+            <button type="button" class="focusBtn" data-focus="NeedsUpdate">NeedsUpdate</button>
           </div>
         </div>
-        <span id="flash"></span>
       </div>
     </section>
 
-    <main>
-      <section class="tabs" aria-label="Dashboard tabs">
-        <div class="tab-list" role="tablist">
-          <button class="tab-btn active" id="tabBtnOverview" role="tab" aria-selected="true" aria-controls="tabOverview" data-tab="overview">Overview</button>
-          <button class="tab-btn" id="tabBtnProjects" role="tab" aria-selected="false" aria-controls="tabProjects" data-tab="projects">Projects</button>
-          <button class="tab-btn" id="tabBtnTimeline" role="tab" aria-selected="false" aria-controls="tabTimeline" data-tab="timeline">Timeline</button>
-          <button class="tab-btn" id="tabBtnOperations" role="tab" aria-selected="false" aria-controls="tabOperations" data-tab="operations">Operations</button>
-        </div>
-      </section>
-
-      <section id="historyDrawer" class="drawer hidden">
-        <div class="drawer-head">
-          <h2 id="historyTitle">Project History</h2>
-          <button id="closeHistoryBtn">Close</button>
-        </div>
-        <ul id="historyList" class="history"></ul>
-      </section>
-
+            <div class="dash-panels" role="main">
       <section id="tabOverview" class="tab-panel active" role="tabpanel" aria-labelledby="tabBtnOverview">
         <section class="cards">
           <article class="card">
@@ -365,7 +474,19 @@
           </article>
         </section>
       </section>
-    </main>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <section id="historyDrawer" class="drawer hidden dash-modal-overlay dash-history-drawer">
+      <div class="drawer-head">
+        <h2 id="historyTitle">Project History</h2>
+        <button type="button" id="closeHistoryBtn">Close</button>
+      </div>
+      <ul id="historyList" class="history"></ul>
+    </section>
 
     <template id="projectCardTpl">
       <article class="card">
@@ -539,10 +660,10 @@
       </div>
     </div>
 
-    <section id="commandPalette" class="drawer hidden">
+    <section id="commandPalette" class="drawer hidden dash-modal-overlay dash-command-palette">
       <div class="drawer-head">
         <h2>Command Palette</h2>
-        <button id="closePaletteBtn">Close</button>
+        <button type="button" id="closePaletteBtn">Close</button>
       </div>
       <input id="paletteInput" placeholder="Type project slug/name or command" title="Examples: status:done, focus:blocked" />
       <ul id="paletteList" class="history"></ul>
