@@ -10,6 +10,19 @@ function send(msg) {
 
 let sawTools = false;
 let sawResources = false;
+let toolNames = new Set();
+const requiredTools = [
+  "create_project",
+  "delete_project",
+  "update_project_task",
+  "remove_project_task",
+  "vault_list_tree",
+  "vault_get_note",
+  "vault_create_note",
+  "vault_update_note",
+  "vault_delete_note",
+  "vault_move_note"
+];
 let buffered = "";
 
 child.stdout.on("data", (chunk) => {
@@ -20,9 +33,18 @@ child.stdout.on("data", (chunk) => {
     if (!line.trim()) continue;
     try {
       const msg = JSON.parse(line);
-      if (msg.result?.tools) sawTools = true;
+      if (msg.result?.tools) {
+        sawTools = true;
+        toolNames = new Set((msg.result.tools || []).map((t) => t.name).filter(Boolean));
+      }
       if (msg.result?.resources) sawResources = true;
       if (sawTools && sawResources) {
+        const missing = requiredTools.filter((n) => !toolNames.has(n));
+        if (missing.length) {
+          console.error("MCP smoke failed: missing tools:", missing.join(", "));
+          child.kill();
+          process.exit(1);
+        }
         console.log("MCP smoke test passed.");
         child.kill();
       }

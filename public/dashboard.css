@@ -131,17 +131,11 @@ body.vault-app.dash-app {
 }
 
 .dash-app .controls input,
-.dash-app .controls select,
-.dash-app .controls button {
+.dash-app .controls select {
   background: var(--vault-container-low);
   color: var(--vault-text);
   border: 1px solid var(--vault-border);
   border-radius: var(--vault-radius);
-}
-
-.dash-app .controls button:hover {
-  border-color: rgba(206, 189, 255, 0.35);
-  color: var(--vault-text);
 }
 
 .dash-app .controls button:focus-visible,
@@ -154,6 +148,40 @@ body.vault-app.dash-app {
 /* Tab panels in main scroll region */
 .dash-app .dash-panels .tab-panel {
   gap: 20px;
+}
+
+/* Projects tab: shorter dropdowns (Add Project + project list cards only) */
+.dash-app #tabProjects .card select:not([multiple]) {
+  min-height: 32px;
+  max-height: 40px;
+  padding-block: 4px;
+  padding-inline: 8px;
+  font-size: 13px;
+  line-height: 1.25;
+}
+.dash-app #tabProjects .card select[multiple] {
+  min-height: auto;
+  padding: 4px 6px;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+/*
+ * Project cards use .row.stack-row (column flex). Global .row > select uses flex: 1 1 180px
+ * and .card .row .taskInput uses flex: 2 1 260px — on the column axis that becomes height,
+ * so Status and text fields look like tall text areas. Reset flex for direct stack children.
+ */
+.dash-app .card .row.stack-row > input,
+.dash-app .card .row.stack-row > select:not([multiple]) {
+  flex: 0 0 auto;
+}
+.dash-app .card .row.stack-row > .taskDeps,
+.dash-app .card .row.stack-row > .taskFacts {
+  flex: 0 0 auto;
+}
+/* .card .row .taskDueDate uses flex-basis 160px — on column axis that becomes a 160px-tall date box */
+.dash-app .card .row.stack-row > .taskDueDate {
+  flex: 0 0 auto;
 }
 
 /* Cards */
@@ -262,7 +290,7 @@ body.vault-app.dash-app {
   color: var(--vault-text);
 }
 
-.dash-app .dash-modal-overlay .drawer-head button {
+.dash-app .dash-modal-overlay .drawer-head button:not(.vault-btn-new) {
   background: var(--vault-container-low);
   color: var(--vault-text);
   border: 1px solid var(--vault-border);

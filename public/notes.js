@@ -7,12 +7,12 @@ import {
   getVaultDiagramKind,
   extractMermaidSourceFromFile,
   extractMermaidBlockFromMarkdown,
-  graphMermaidSource,
   runMermaidOnElements,
   renderMermaidSvgInto,
   hydrateExcalidrawEmbeds,
   renderVaultDiagramFile
 } from "./vault-diagram-render.js";
+import { renderVaultLinkGraph } from "./vault-d3-graph.js";
 
 marked.use({ gfm: true, breaks: true });
 
@@ -78,6 +78,8 @@ const VAULT_DIAG_OPEN_PREFIX = "vaultDiagOpen:";
 const vaultMermaidSrcByWrap = new WeakMap();
 
 let currentPath = "";
+/** Stops D3 simulation when leaving the Graph panel or re-fetching. */
+let vaultGraphPanelCleanup = null;
 let diagramExpandFocusReturn = null;
 let diagramExpandScale = 1;
 let diagramExpandActiveHost = null;
@@ -459,6 +461,9 @@ function collectDiagramExpandHosts(rootEl) {
   };
   rootEl.querySelectorAll(".vault-mermaid-wrap").forEach(add);
   rootEl.querySelectorAll("[data-vault-excalidraw]").forEach(add);
+  rootEl.querySelectorAll("[data-vault-link-graph='1']").forEach((el) => {
+    if (el.querySelector("svg")) add(el);
+  });
   rootEl.querySelectorAll(".mermaid").forEach((el) => {
     if (!el.closest(".vault-mermaid-wrap")) add(el);
   });
@@ -517,15 +522,19 @@ function buildDiagramStandalonePayload(host) {
   if (!host) return null;
   const ex = host.getAttribute("data-vault-excalidraw");
   if (ex) return { v: 1, kind: "excalidraw", path: ex };
+  if (
+    host.getAttribute("data-vault-link-graph") === "1" &&
+    mermaidGraphHost &&
+    mermaidGraphHost.contains(host)
+  ) {
+    return { v: 1, kind: "graph" };
+  }
   if (host.classList.contains("vault-mermaid-wrap")) {
     const source = getMermaidInlineSourceForWrap(host);
     if (source == null) return null;
     return { v: 1, kind: "mermaidSource", source };
   }
   if (host.classList.contains("mermaid") && !host.closest(".vault-mermaid-wrap")) {
-    if (mermaidGraphHost && mermaidGraphHost.contains(host)) {
-      return { v: 1, kind: "graph" };
-    }
     if (isMermaidVaultPath(currentPath)) {
       return { v: 1, kind: "mermaidFile", path: currentPath };
     }
@@ -576,6 +585,10 @@ function getDiagramRootSvgs(host) {
 async function openDiagramExpand(host) {
   if (!diagramExpandDialog || !diagramExpandScaled || !host) return;
   diagramExpandActiveHost = host;
+  if (typeof diagramExpandScaled._vaultGraphCleanup === "function") {
+    diagramExpandScaled._vaultGraphCleanup();
+    delete diagramExpandScaled._vaultGraphCleanup;
+  }
   diagramExpandScaled.innerHTML = "";
   resetDiagramExpandZoom();
   applyDiagramExpandZoomTransform();
@@ -617,6 +630,10 @@ function initDiagramExpandDialog() {
     if (diagramExpandActiveHost) openDiagramStandaloneFromHost(diagramExpandActiveHost);
   });
   diagramExpandDialog.addEventListener("close", () => {
+    if (diagramExpandScaled && typeof diagramExpandScaled._vaultGraphCleanup === "function") {
+      diagramExpandScaled._vaultGraphCleanup();
+      delete diagramExpandScaled._vaultGraphCleanup;
+    }
     diagramExpandScaled.innerHTML = "";
     diagramExpandActiveHost = null;
     resetDiagramExpandZoom();
@@ -1135,21 +1152,38 @@ btnToggleInspector?.addEventListener("click", () => {
  * (cloning nested SVGs / defs from the note body often breaks rendering).
  */
 async function tryRenderMermaidInExpandDialog(host) {
+  if (host?.getAttribute("data-vault-link-graph") === "1") {
+    try {
+      const res = await fetch("/api/vault/graph");
+      if (!res.ok) return false;
+      const data = await res.json();
+      const graph = data.graph || { nodes: [], edges: [] };
+      if (!graph.nodes?.length || !diagramExpandScaled) return false;
+      diagramExpandScaled.innerHTML = "";
+      const wrap = document.createElement("div");
+      wrap.style.width = "100%";
+      wrap.style.minHeight = "min(56vh, 560px)";
+      diagramExpandScaled.appendChild(wrap);
+      const { destroy } = renderVaultLinkGraph(wrap, graph, {
+        onNodeClick: (id) => {
+          diagramExpandDialog?.close();
+          setPanel("reader");
+          void loadNote(id);
+        }
+      });
+      diagramExpandScaled._vaultGraphCleanup = destroy;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   let source = null;
   if (host.classList.contains("vault-mermaid-wrap")) {
     source = getMermaidInlineSourceForWrap(host);
   } else if (host.classList.contains("mermaid") && !host.closest(".vault-mermaid-wrap")) {
     if (isMermaidVaultPath(currentPath)) {
       source = extractMermaidSourceFromFile(currentSource);
-    } else if (mermaidGraphHost && mermaidGraphHost.contains(host)) {
-      try {
-        const res = await fetch("/api/vault/graph");
-        const data = await res.json();
-        const graph = data.graph || { nodes: [], edges: [] };
-        if (graph.nodes?.length) source = graphMermaidSource(graph);
-      } catch {
-        return false;
-      }
     }
   }
   if (source == null || String(source).trim() === "") return false;
@@ -1160,6 +1194,8 @@ async function tryRenderMermaidInExpandDialog(host) {
 }
 
 async function loadGraphPanel() {
+  vaultGraphPanelCleanup?.();
+  vaultGraphPanelCleanup = null;
   mermaidGraphHost.innerHTML = "";
   brokenLinksListEl.innerHTML = "";
   const res = await fetch("/api/vault/graph");
@@ -1172,17 +1208,23 @@ async function loadGraphPanel() {
     return;
   }
 
-  const src = graphMermaidSource(graph);
-  const pre = document.createElement("pre");
-  pre.className = "mermaid";
-  pre.textContent = src;
-  mermaidGraphHost.appendChild(pre);
-  const run = await runMermaidOnElements([pre]);
-  if (run.ok) {
+  const root = document.createElement("div");
+  root.className = "vault-link-graph-root";
+  root.setAttribute("data-vault-link-graph", "1");
+  mermaidGraphHost.appendChild(root);
+
+  try {
+    const { destroy } = renderVaultLinkGraph(root, graph, {
+      onNodeClick: (id) => {
+        setPanel("reader");
+        void loadNote(id);
+      }
+    });
+    vaultGraphPanelCleanup = destroy;
     decorateDiagramExpandControls(mermaidGraphHost);
-  } else {
-    const msg = run.error?.message || String(run.error);
-    mermaidGraphHost.innerHTML = `<p class="vault-link-broken">Graph layout failed: ${escapeAttr(msg)}</p><pre class="vault-graph-error-pre">${escapeAttr(src)}</pre>`;
+  } catch (e) {
+    const msg = e?.message || String(e);
+    mermaidGraphHost.innerHTML = `<p class="vault-link-broken">Graph layout failed: ${escapeAttr(msg)}</p>`;
   }
 
   if (broken.length) {

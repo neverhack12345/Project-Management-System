@@ -5,6 +5,7 @@ import { ALLOWED_STATUS, PROJECTS_DIR } from "./constants.js";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TASK_REF_RE = /^[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*$/;
+const PROJECT_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const TASK_LANES = new Set(["backlog", "todo", "in-progress", "done"]);
 const FACT_STATUSES = new Set(["unknown", "unverified", "in-review", "verified"]);
 const FACT_RE = /^[a-z0-9][a-z0-9-]*$/;
@@ -480,6 +481,222 @@ export async function updateTaskState(slug, taskId, state) {
   return { updatedFile: taskPath };
 }
 
+function parseTaskLineParts(line) {
+  const isOpen = line.startsWith("- [ ] ");
+  const isDone = line.startsWith("- [x] ");
+  if (!isOpen && !isDone) return null;
+  const idMatch = line.match(/\[id:([a-z0-9][a-z0-9-]*)\]/);
+  if (!idMatch) return null;
+  const dueMatch = line.match(/\[due:(\d{4}-\d{2}-\d{2})\]/);
+  const stateMatch = line.match(/\[state:(backlog|todo|in-progress|done)\]/);
+  const depsMatch = line.match(/\[deps:([^\]]+)\]/);
+  const factsMatch = line.match(/\[facts:([^\]]+)\]/);
+  const recurMatch = line.match(/\[recur:(daily|weekly|monthly)\]/);
+  const title = line
+    .replace(/^- \[[ x]\] /, "")
+    .replace(/\s+\[(id|due|deps|recur|state|facts):[^\]]+\]/g, "")
+    .trim();
+  return {
+    isDone,
+    taskId: idMatch[1],
+    due: dueMatch?.[1] || "",
+    state: normalizeTaskState(stateMatch?.[1], isDone),
+    depsRaw: depsMatch?.[1] || "",
+    factsRaw: factsMatch?.[1] || "",
+    recur: recurMatch?.[1] || "",
+    title
+  };
+}
+
+function normalizeDepIdList(slug, dependsOn) {
+  const toDepIds = (value) => {
+    if (Array.isArray(value)) return value;
+    if (typeof value === "string") return value.split(",");
+    return [];
+  };
+  const depIds = toDepIds(dependsOn)
+    .map((entry) => String(entry || "").trim().toLowerCase())
+    .filter(Boolean);
+  return depIds.map((depId) => (depId.includes(":") ? depId : `${slug}:${depId}`));
+}
+
+function validateDepRefs(normalizedDeps) {
+  for (const depId of normalizedDeps) {
+    if (!TASK_REF_RE.test(depId)) {
+      throw new Error(`Invalid dependency task ref: ${depId}`);
+    }
+  }
+}
+
+function buildTaskLine(slug, parts) {
+  const isDone = Boolean(parts.isDone);
+  const prefix = isDone ? "- [x] " : "- [ ] ";
+  const lane = isDone ? "done" : String(parts.state || "todo").trim().toLowerCase();
+  const idToken = ` [id:${parts.taskId}]`;
+  const dueToken = parts.due ? ` [due:${parts.due}]` : "";
+  const stateToken = ` [state:${lane}]`;
+  const depsToken = parts.depsNorm?.length ? ` [deps:${parts.depsNorm.join(",")}]` : "";
+  const factsToken = parts.factsNorm?.length ? ` [facts:${parts.factsNorm.join(",")}]` : "";
+  const recurValue = String(parts.recur || "").trim().toLowerCase();
+  const recurToken = ["daily", "weekly", "monthly"].includes(recurValue) ? ` [recur:${recurValue}]` : "";
+  return `${prefix}${parts.title}${idToken}${dueToken}${stateToken}${depsToken}${factsToken}${recurToken}`;
+}
+
+function lineReferencesTaskRef(line, projectSlugOfLine, targetRefLower) {
+  const m = line.match(/\[deps:([^\]]+)\]/);
+  if (!m) return false;
+  const bits = m[1]
+    .split(",")
+    .map((x) => x.trim().toLowerCase())
+    .filter(Boolean);
+  for (const b of bits) {
+    const full = b.includes(":") ? b : `${projectSlugOfLine}:${b}`;
+    if (full === targetRefLower) return true;
+  }
+  return false;
+}
+
+export async function updateTask(slug, taskId, patch = {}) {
+  const taskPath = path.join(PROJECTS_DIR, slug, "tasks.md");
+  const raw = await fs.readFile(taskPath, "utf8");
+  const lines = raw.split("\n");
+  let idx = -1;
+  let parts = null;
+  for (let i = 0; i < lines.length; i++) {
+    const p = parseTaskLineParts(lines[i]);
+    if (p && p.taskId === taskId) {
+      idx = i;
+      parts = p;
+      break;
+    }
+  }
+  if (!parts || idx === -1) throw new Error(`Task not found: ${slug}:${taskId}`);
+
+  let title = typeof patch.title === "string" ? patch.title.trim() : parts.title;
+  let due = parts.due;
+  if (patch.dueDate !== undefined && patch.dueDate !== null && String(patch.dueDate).trim() !== "") {
+    const d = String(patch.dueDate).trim();
+    if (!isIsoDate(d)) throw new Error("dueDate must be ISO YYYY-MM-DD");
+    due = d;
+  }
+  let state = parts.state;
+  if (typeof patch.state === "string" && patch.state.trim()) {
+    const ns = patch.state.trim().toLowerCase();
+    if (!TASK_LANES.has(ns)) throw new Error(`Invalid task lane: ${patch.state}`);
+    state = ns;
+  }
+  let isDone = parts.isDone;
+  if (patch.done === true) {
+    isDone = true;
+    state = "done";
+  }
+  if (patch.done === false) {
+    isDone = false;
+    if (state === "done") state = "todo";
+  }
+  if (state === "done") isDone = true;
+
+  let depsNorm;
+  if (patch.dependsOn !== undefined) {
+    depsNorm = normalizeDepIdList(slug, patch.dependsOn);
+    validateDepRefs(depsNorm);
+  } else {
+    const dr = parts.depsRaw;
+    depsNorm = dr
+      ? dr
+          .split(",")
+          .map((x) => x.trim().toLowerCase())
+          .filter(Boolean)
+          .map((depId) => (depId.includes(":") ? depId : `${slug}:${depId}`))
+      : [];
+  }
+
+  let factsNorm;
+  if (patch.factRefs !== undefined) {
+    factsNorm = normalizeFactRefs(slug, patch.factRefs);
+    const project = await loadProject(slug);
+    const knownFacts = new Set((project.facts || []).map((fact) => fact.ref));
+    for (const ref of factsNorm) {
+      if (!knownFacts.has(ref)) throw new Error(`Unknown fact ref: ${ref}`);
+    }
+  } else {
+    factsNorm = parts.factsRaw
+      ? parts.factsRaw
+          .split(",")
+          .map((x) => x.trim().toLowerCase())
+          .filter(Boolean)
+          .map((ref) => (ref.includes(":") ? ref : `${slug}:${ref}`))
+      : [];
+  }
+
+  let recur = parts.recur;
+  if (patch.recurrence !== undefined) {
+    const recurValue = String(patch.recurrence || "").trim().toLowerCase();
+    recur = ["daily", "weekly", "monthly"].includes(recurValue) ? recurValue : "";
+  }
+
+  if (!isDone && !due) {
+    throw new Error("Open tasks require a due date (dueDate)");
+  }
+
+  const newLine = buildTaskLine(slug, {
+    isDone,
+    taskId,
+    title,
+    due,
+    state: isDone ? "done" : state,
+    depsNorm,
+    factsNorm,
+    recur
+  });
+  lines[idx] = newLine;
+  await atomicWrite(taskPath, `${lines.join("\n").replace(/\n*$/, "")}\n`);
+  return { updatedFile: taskPath };
+}
+
+export async function removeTask(slug, taskId) {
+  const taskPath = path.join(PROJECTS_DIR, slug, "tasks.md");
+  const raw = await fs.readFile(taskPath, "utf8");
+  const lines = raw.split("\n");
+  let targetLineIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (
+      lines[i].includes(`[id:${taskId}]`) &&
+      (lines[i].startsWith("- [ ] ") || lines[i].startsWith("- [x] "))
+    ) {
+      targetLineIdx = i;
+      break;
+    }
+  }
+  if (targetLineIdx === -1) throw new Error(`Task not found: ${slug}:${taskId}`);
+  const targetRef = `${slug}:${taskId}`.toLowerCase();
+  const slugs = await listProjectSlugs();
+  for (const otherSlug of slugs) {
+    const p = path.join(PROJECTS_DIR, otherSlug, "tasks.md");
+    let content;
+    try {
+      content = await fs.readFile(p, "utf8");
+    } catch {
+      continue;
+    }
+    for (const line of content.split("\n")) {
+      if (
+        otherSlug === slug &&
+        line.includes(`[id:${taskId}]`) &&
+        (line.startsWith("- [ ] ") || line.startsWith("- [x] "))
+      ) {
+        continue;
+      }
+      if (lineReferencesTaskRef(line, otherSlug, targetRef)) {
+        throw new Error(`Cannot remove task ${slug}:${taskId}: referenced by a dependency in project ${otherSlug}`);
+      }
+    }
+  }
+  const next = lines.filter((_, i) => i !== targetLineIdx);
+  await atomicWrite(taskPath, `${next.join("\n").replace(/\n*$/, "")}\n`);
+  return { updatedFile: taskPath };
+}
+
 export async function listProjectFacts(slug) {
   const project = await loadProject(slug);
   return project.facts || [];
@@ -563,6 +780,29 @@ export async function updateMilestone(slug, milestoneId, patch) {
 
 export async function ensureProjectsDir() {
   await fs.mkdir(PROJECTS_DIR, { recursive: true });
+}
+
+/**
+ * @param {string} slug
+ * @param {{ confirmSlug?: string }} opts
+ */
+export async function deleteProject(slug, opts = {}) {
+  const s = String(slug || "").trim();
+  const confirm = String(opts.confirmSlug || "").trim();
+  if (confirm !== s) {
+    throw new Error("confirmSlug must exactly match slug for destructive delete");
+  }
+  if (!PROJECT_SLUG_RE.test(s)) {
+    throw new Error("Invalid project slug");
+  }
+  const dir = path.join(PROJECTS_DIR, s);
+  try {
+    await fs.access(dir);
+  } catch {
+    throw new Error(`Project not found: ${s}`);
+  }
+  await fs.rm(dir, { recursive: true, force: false });
+  return { deleted: s, dir };
 }
 
 export async function atomicWrite(filePath, data) {

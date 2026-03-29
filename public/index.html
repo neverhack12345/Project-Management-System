@@ -30,7 +30,7 @@
             <span class="vault-brand-sub">From markdown files</span>
           </div>
         </div>
-        <button type="button" id="dashCommandPaletteBtn" class="vault-btn-new">
+        <button type="button" id="dashCommandPaletteBtn" class="vault-btn-new vault-btn-new--sidebar">
           <span class="material-symbols-outlined vault-ms" aria-hidden="true">terminal</span>
           Command palette
         </button>
@@ -179,9 +179,9 @@
         <div class="field actions-inline">
           <span>Views</span>
           <div class="row">
-            <button type="button" id="saveViewBtn">Save View</button>
+            <button type="button" id="saveViewBtn" class="vault-btn-new vault-btn-new--inline">Save View</button>
             <select id="savedViews"></select>
-            <button type="button" id="deleteViewBtn">Delete View</button>
+            <button type="button" id="deleteViewBtn" class="vault-btn-new vault-btn-new--inline vault-btn-new--secondary">Delete View</button>
           </div>
         </div>
       </div>
@@ -213,7 +213,7 @@
         <div class="field">
           <span>Apply</span>
           <div class="row">
-            <button id="applyBulkBtn">Apply Bulk</button>
+            <button type="button" id="applyBulkBtn" class="vault-btn-new vault-btn-new--inline">Apply Bulk</button>
           </div>
         </div>
         <label class="field">
@@ -231,10 +231,10 @@
         <div class="field">
           <span>Focus filters</span>
           <div class="row">
-            <button type="button" class="focusBtn" data-focus="DueSoon">DueSoon</button>
-            <button type="button" class="focusBtn" data-focus="Blocked">Blocked</button>
-            <button type="button" class="focusBtn" data-focus="Overdue">Overdue</button>
-            <button type="button" class="focusBtn" data-focus="NeedsUpdate">NeedsUpdate</button>
+            <button type="button" class="focusBtn vault-btn-new vault-btn-new--inline vault-btn-new--secondary" data-focus="DueSoon">DueSoon</button>
+            <button type="button" class="focusBtn vault-btn-new vault-btn-new--inline vault-btn-new--secondary" data-focus="Blocked">Blocked</button>
+            <button type="button" class="focusBtn vault-btn-new vault-btn-new--inline vault-btn-new--secondary" data-focus="Overdue">Overdue</button>
+            <button type="button" class="focusBtn vault-btn-new vault-btn-new--inline vault-btn-new--secondary" data-focus="NeedsUpdate">NeedsUpdate</button>
           </div>
         </div>
       </div>
@@ -316,13 +316,13 @@
               </label>
             </div>
             <div class="row">
-              <button id="createProjectBtn">Create Project</button>
+              <button type="button" id="createProjectBtn" class="vault-btn-new vault-btn-new--inline">Create Project</button>
             </div>
           </article>
           <article class="card card-task-launch">
             <h2>Tasks</h2>
             <p class="helper-text">Open the task dialog to set description, priority, due date, recurrence, and dependencies.</p>
-            <button type="button" id="openTaskModalBtn" class="task-modal-open-btn">Create task…</button>
+            <button type="button" id="openTaskModalBtn" class="vault-btn-new vault-btn-new--inline vault-btn-new--block">Create task…</button>
           </article>
         </section>
         <section>
@@ -379,7 +379,7 @@
               <input id="timeSlug" placeholder="project slug" title="Project slug to log time against" />
               <input id="timeMinutes" placeholder="minutes" />
               <input id="timeNote" placeholder="note" title="Optional time entry note" />
-              <button id="addTimeEntryBtn">Log</button>
+              <button type="button" id="addTimeEntryBtn" class="vault-btn-new vault-btn-new--inline">Log</button>
             </div>
             <ul id="timeEntriesList" class="history"></ul>
           </article>
@@ -456,21 +456,21 @@
             </label>
             </div>
             <div class="row">
-              <button id="submitIntakeBtn">Submit Intake</button>
+              <button type="button" id="submitIntakeBtn" class="vault-btn-new vault-btn-new--inline">Submit Intake</button>
             </div>
             <ul id="intakeList" class="history"></ul>
           </article>
           <article class="card">
             <h2>Automation Rules</h2>
             <div class="row">
-              <button id="runAutomationDryBtn">Run Dry</button>
-              <button id="runAutomationBtn">Run</button>
-              <button id="exportSnapshotBtn">Export Snapshot</button>
+              <button type="button" id="runAutomationDryBtn" class="vault-btn-new vault-btn-new--inline vault-btn-new--secondary">Run Dry</button>
+              <button type="button" id="runAutomationBtn" class="vault-btn-new vault-btn-new--inline">Run</button>
+              <button type="button" id="exportSnapshotBtn" class="vault-btn-new vault-btn-new--inline vault-btn-new--secondary">Export Snapshot</button>
             </div>
             <ul id="automationList" class="history"></ul>
             <div class="row">
               <input id="migrationInput" placeholder="Migration JSON array" title='Example: [{"title":"X","state":"todo"}]' />
-              <button id="previewMigrationBtn">Preview Migration</button>
+              <button type="button" id="previewMigrationBtn" class="vault-btn-new vault-btn-new--inline">Preview Migration</button>
             </div>
             <ul id="migrationList" class="history"></ul>
           </article>
@@ -485,7 +485,7 @@
     <section id="historyDrawer" class="drawer hidden dash-modal-overlay dash-history-drawer">
       <div class="drawer-head">
         <h2 id="historyTitle">Project History</h2>
-        <button type="button" id="closeHistoryBtn">Close</button>
+        <button type="button" id="closeHistoryBtn" class="vault-btn-new vault-btn-new--inline vault-btn-new--secondary">Close</button>
       </div>
       <ul id="historyList" class="history"></ul>
     </section>
@@ -504,7 +504,7 @@
             <option value="blocked">blocked</option>
             <option value="done">done</option>
           </select>
-          <button class="saveStatus">Save</button>
+          <button type="button" class="saveStatus vault-btn-new vault-btn-new--inline">Save</button>
         </div>
         <div class="row stack-row">
           <input class="decisionNoteInput" placeholder="Decision note" title="Required when setting blocked or done" />
@@ -512,19 +512,19 @@
         <div class="row stack-row">
           <input class="taskInput" placeholder="Quick add task..." />
           <input class="taskDueDate" type="date" title="Task deadline" />
-          <select class="taskDeps" multiple size="3" title="Depends on"></select>
-          <select class="taskFacts" multiple size="3" title="Fact refs"></select>
+          <select class="taskDeps" multiple size="2" title="Depends on"></select>
+          <select class="taskFacts" multiple size="2" title="Fact refs"></select>
           <select class="taskRecur">
             <option value="">no recur</option>
             <option value="daily">daily</option>
             <option value="weekly">weekly</option>
             <option value="monthly">monthly</option>
           </select>
-          <button class="addTask">Add Task</button>
+          <button type="button" class="addTask vault-btn-new vault-btn-new--inline">Add Task</button>
         </div>
         <div class="row stack-row">
           <input class="blockedReasonInput" placeholder="Blocked reason" title="Explain what is blocking this project" />
-          <button class="saveMeta">Save Meta</button>
+          <button type="button" class="saveMeta vault-btn-new vault-btn-new--inline">Save Meta</button>
         </div>
         <div class="row stack-row">
           <input class="factStatementInput" placeholder="Add fact statement..." />
@@ -536,12 +536,12 @@
           </select>
           <input class="factSourceInput" placeholder="source URL/reference" title="Source URL or reference for this fact" />
           <input class="factNoteInput" placeholder="verification note" title="Brief note describing verification" />
-          <button class="addFact">Add Fact</button>
+          <button type="button" class="addFact vault-btn-new vault-btn-new--inline">Add Fact</button>
         </div>
         <ul class="factList history"></ul>
         <div class="row stack-row">
           <label><input type="checkbox" class="selectProject" /> select</label>
-          <button class="loadHistory">Open History</button>
+          <button type="button" class="loadHistory vault-btn-new vault-btn-new--inline vault-btn-new--secondary">Open History</button>
         </div>
       </article>
     </template>
@@ -665,7 +665,7 @@
     <section id="commandPalette" class="drawer hidden dash-modal-overlay dash-command-palette">
       <div class="drawer-head">
         <h2>Command Palette</h2>
-        <button type="button" id="closePaletteBtn">Close</button>
+        <button type="button" id="closePaletteBtn" class="vault-btn-new vault-btn-new--inline vault-btn-new--secondary">Close</button>
       </div>
       <input id="paletteInput" placeholder="Type project slug/name or command" title="Examples: status:done, focus:blocked" />
       <ul id="paletteList" class="history"></ul>

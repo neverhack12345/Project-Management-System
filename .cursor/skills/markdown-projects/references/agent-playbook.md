@@ -28,6 +28,15 @@ This playbook defines the default operating protocol for AI agents using this re
   - you need batch reporting/ops artifacts in `reports/`
   - you are executing full cadence bundles (`ops:*`)
   - you need local script flags not surfaced by MCP playbooks
+  - you need vault file CRUD without MCP (see `npm run vault:crud` in `docs/CLI_OPS_REFERENCE.md`)
+- Use HTTP (`npm run dev`) when:
+  - integrating with the dashboard or notes UI, or calling `GET`/`POST`/`PUT`/`DELETE` `/api/vault/*` from tooling that already speaks HTTP
+
+## Vault and second brain
+
+- Markdown notes live under `vault/`; browse at `/notes.html` when the dev server is running.
+- Prefer MCP tools `vault_*` for tree, read, create, update, delete, and move; they use the same validation as the API (`normalizeVaultRelPath`, allowed extensions).
+- Full CRUD index: `docs/CRUD_REFERENCE.md` or MCP resource `resource://docs/crud`.
 
 ## Standard workflows
 

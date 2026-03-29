@@ -14,16 +14,29 @@ import {
   addTask,
   assertVersionToken,
   createProjectFact,
+  deleteProject,
   listProjectFacts,
   loadAllProjects,
   loadProject,
+  removeTask,
   updateProjectFact,
   updateMilestone,
   updateProjectMeta,
+  updateTask,
   updateTaskFactRefs,
   updateTaskState,
   updateProjectStatus
 } from "./markdown-store.js";
+import {
+  buildVaultTree,
+  createVaultNote,
+  deleteVaultNote,
+  ensureVaultDir,
+  getVaultFilePayload,
+  listVaultTreeRelPaths,
+  moveVaultNote,
+  writeVaultNote
+} from "./vault-store.js";
 import {
   buildDependencyInsights,
   buildPortfolioSummary,
@@ -263,6 +276,109 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         }
       }
     },
+    {
+      name: "create_project",
+      description: "Create a new project from templates under projects/<slug>/ (runs new-project script)",
+      inputSchema: {
+        type: "object",
+        required: ["name"],
+        properties: {
+          name: { type: "string" },
+          owner: { type: "string" },
+          dueDays: { type: "number" },
+          dryRun: { type: "boolean" }
+        }
+      }
+    },
+    {
+      name: "delete_project",
+      description: "Permanently delete projects/<slug>/; confirmSlug must equal slug",
+      inputSchema: {
+        type: "object",
+        required: ["slug", "confirmSlug"],
+        properties: { slug: { type: "string" }, confirmSlug: { type: "string" } }
+      }
+    },
+    {
+      name: "update_project_task",
+      description: "Update task title, dueDate, deps, facts, recurrence, lane, or done checkbox (requires versionToken; done-gated)",
+      inputSchema: {
+        type: "object",
+        required: ["slug", "taskId", "versionToken"],
+        properties: {
+          slug: { type: "string" },
+          taskId: { type: "string" },
+          versionToken: { type: "string" },
+          title: { type: "string" },
+          dueDate: { type: "string" },
+          dependsOn: { type: "array", items: { type: "string" } },
+          factRefs: { type: "array", items: { type: "string" } },
+          recurrence: { type: "string" },
+          state: { type: "string" },
+          done: { type: "boolean" }
+        }
+      }
+    },
+    {
+      name: "remove_project_task",
+      description: "Remove a task line if no other task depends on it (requires versionToken)",
+      inputSchema: {
+        type: "object",
+        required: ["slug", "taskId", "versionToken"],
+        properties: { slug: { type: "string" }, taskId: { type: "string" }, versionToken: { type: "string" } }
+      }
+    },
+    {
+      name: "vault_list_tree",
+      description: "List vault paths and nested tree (second-brain notes under vault/)",
+      inputSchema: { type: "object", properties: {} }
+    },
+    {
+      name: "vault_get_note",
+      description: "Read a vault markdown/mermaid leaf with preview metadata",
+      inputSchema: { type: "object", required: ["path"], properties: { path: { type: "string" } } }
+    },
+    {
+      name: "vault_create_note",
+      description: "Create a new .md note under vault/ (409 if exists)",
+      inputSchema: {
+        type: "object",
+        required: ["path"],
+        properties: {
+          path: { type: "string" },
+          title: { type: "string" },
+          content: { type: "string" },
+          source: { type: "string" }
+        }
+      }
+    },
+    {
+      name: "vault_update_note",
+      description: "Overwrite full note source (including frontmatter)",
+      inputSchema: {
+        type: "object",
+        required: ["path", "content"],
+        properties: { path: { type: "string" }, content: { type: "string" } }
+      }
+    },
+    {
+      name: "vault_delete_note",
+      description: "Delete a vault .md/.mmd/.mermaid file",
+      inputSchema: { type: "object", required: ["path"], properties: { path: { type: "string" } } }
+    },
+    {
+      name: "vault_move_note",
+      description: "Rename/move a vault note; set overwrite true to replace destination",
+      inputSchema: {
+        type: "object",
+        required: ["from", "to"],
+        properties: {
+          from: { type: "string" },
+          to: { type: "string" },
+          overwrite: { type: "boolean" }
+        }
+      }
+    },
     { name: "run_validate", description: "Run validation script", inputSchema: { type: "object", properties: { dryRun: { type: "boolean" } } } },
     { name: "run_weekly_review", description: "Generate weekly review report", inputSchema: { type: "object", properties: { dryRun: { type: "boolean" } } } },
     { name: "run_alerts", description: "Generate alerts report", inputSchema: { type: "object", properties: { dryRun: { type: "boolean" } } } },
@@ -463,6 +579,71 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             dueDate: args.dueDate
           })
         );
+      case "create_project": {
+        const name = String(args.name || "").trim();
+        if (!name) throw new Error("name is required");
+        const owner = String(args.owner || "").trim() || "unassigned";
+        const dueDays = Math.max(1, Math.min(Number(args.dueDays) || 30, 3650));
+        return contentJson(
+          await runNodeScript(
+            "new-project.mjs",
+            ["--name", name, "--owner", owner, "--dueDays", String(dueDays)],
+            Boolean(args.dryRun)
+          )
+        );
+      }
+      case "delete_project":
+        return contentJson(await deleteProject(args.slug, { confirmSlug: args.confirmSlug }));
+      case "update_project_task": {
+        await assertVersionToken(args.slug, args.versionToken);
+        const becomingDone =
+          args.done === true || String(args.state || "").trim().toLowerCase() === "done";
+        if (becomingDone) {
+          const project = await loadProject(args.slug);
+          const task = (project.tasks || []).find((item) => item.id === args.taskId);
+          if (!task) throw new Error(`Task not found: ${args.slug}:${args.taskId}`);
+          if ((task.unresolvedFactRefs || []).length > 0) {
+            throw new Error("Cannot move task to done while linked facts are unresolved.");
+          }
+        }
+        const patch = {};
+        if (typeof args.title === "string") patch.title = args.title;
+        if (args.dueDate !== undefined && args.dueDate !== null) patch.dueDate = args.dueDate;
+        if (args.dependsOn !== undefined) patch.dependsOn = args.dependsOn;
+        if (args.factRefs !== undefined) patch.factRefs = args.factRefs;
+        if (args.recurrence !== undefined) patch.recurrence = args.recurrence;
+        if (typeof args.state === "string") patch.state = args.state;
+        if (typeof args.done === "boolean") patch.done = args.done;
+        return contentJson(await updateTask(args.slug, args.taskId, patch));
+      }
+      case "remove_project_task":
+        await assertVersionToken(args.slug, args.versionToken);
+        return contentJson(await removeTask(args.slug, args.taskId));
+      case "vault_list_tree": {
+        await ensureVaultDir();
+        const paths = await listVaultTreeRelPaths();
+        return contentJson({ paths, tree: buildVaultTree(paths) });
+      }
+      case "vault_get_note":
+        return contentJson(await getVaultFilePayload(args.path || ""));
+      case "vault_create_note": {
+        await ensureVaultDir();
+        return contentJson(
+          await createVaultNote(args.path, {
+            title: args.title,
+            content: args.content,
+            source: args.source
+          })
+        );
+      }
+      case "vault_update_note":
+        return contentJson(await writeVaultNote(args.path, args.content));
+      case "vault_delete_note":
+        return contentJson(await deleteVaultNote(args.path));
+      case "vault_move_note":
+        return contentJson(
+          await moveVaultNote(args.from, args.to, { overwrite: Boolean(args.overwrite) })
+        );
       case "run_validate":
         return contentJson(await runNodeScript("validate.mjs", [], args.dryRun));
       case "run_weekly_review":
@@ -513,6 +694,12 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => ({
     { uri: "resource://schema", name: "Schema", mimeType: "text/markdown", description: "Project markdown schema" },
     { uri: "resource://readme", name: "README", mimeType: "text/markdown", description: "Project overview and usage" },
     { uri: "resource://scripts", name: "Scripts", mimeType: "application/json", description: "Script capability summary" },
+    {
+      uri: "resource://docs/crud",
+      name: "CRUD reference",
+      mimeType: "text/markdown",
+      description: "Projects, tasks, and vault CRUD via MCP, CLI, and API"
+    },
     { uri: "resource://reports/latest-weekly", name: "Latest weekly report", mimeType: "text/markdown", description: "Most recent weekly report" },
     { uri: "resource://reports/alerts", name: "Alerts report", mimeType: "application/json", description: "Latest generated alerts" }
   ]
@@ -532,6 +719,8 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     const payload = {
       scripts: [
         "new-project.mjs",
+        "project-delete.mjs",
+        "vault-crud.mjs",
         "validate.mjs",
         "stale-report.mjs",
         "weekly-review.mjs",
@@ -548,6 +737,10 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
       ]
     };
     return { contents: [{ uri, mimeType: "application/json", text: JSON.stringify(payload, null, 2) }] };
+  }
+  if (uri === "resource://docs/crud") {
+    const text = await fs.readFile(path.join(process.cwd(), "docs", "CRUD_REFERENCE.md"), "utf8");
+    return { contents: [{ uri, mimeType: "text/markdown", text }] };
   }
   if (uri === "resource://reports/latest-weekly") {
     const reportsDir = path.join(process.cwd(), "reports");

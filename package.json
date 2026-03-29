@@ -8,6 +8,8 @@
     "dev": "node src/server.js",
     "start": "node src/server.js",
     "new:project": "node scripts/new-project.mjs",
+    "project:delete": "node scripts/project-delete.mjs",
+    "vault:crud": "node scripts/vault-crud.mjs",
     "validate": "node scripts/validate.mjs",
     "stale": "node scripts/stale-report.mjs",
     "review:weekly": "node scripts/weekly-review.mjs",

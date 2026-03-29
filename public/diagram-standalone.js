@@ -1,11 +1,11 @@
 import {
   initVaultMermaid,
-  graphMermaidSource,
   renderMermaidSvgInto,
   fetchVaultExcalidrawScene,
   renderExcalidrawSceneToSvgElement,
   renderVaultDiagramFile
 } from "./vault-diagram-render.js";
+import { renderVaultLinkGraph } from "./vault-d3-graph.js";
 
 const dsScaled = document.getElementById("dsScaled");
 const dsMessage = document.getElementById("dsMessage");
@@ -118,8 +118,19 @@ async function renderGraph() {
     showError("No notes in vault — graph is empty.");
     return;
   }
-  const src = graphMermaidSource(graph);
-  await renderMermaidWithText(src, "Link graph");
+  if (!dsScaled) return;
+  if (dsMessage) dsMessage.hidden = true;
+  dsScaled.hidden = false;
+  dsScaled.innerHTML = "";
+  resetZoom();
+  applyZoom();
+  const wrap = document.createElement("div");
+  wrap.style.width = "100%";
+  wrap.style.height = "min(72vh, 680px)";
+  wrap.style.minHeight = "400px";
+  dsScaled.appendChild(wrap);
+  renderVaultLinkGraph(wrap, graph, {});
+  if (dsTitle) dsTitle.textContent = "Link graph";
 }
 
 async function boot() {

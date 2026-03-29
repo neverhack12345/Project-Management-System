@@ -67,12 +67,12 @@ input::placeholder {
 button {
   transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
 }
-button:hover {
+body:not(.vault-app) button:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25);
   border-color: #4f8cff;
 }
-button:active {
+body:not(.vault-app) button:active {
   transform: translateY(0);
 }
 input[type="checkbox"] {
@@ -434,19 +434,6 @@ select[multiple] {
 }
 
 /* Task creation modal (Obsidian Tasks–style sheet) */
-.task-modal-open-btn {
-  width: 100%;
-  margin-top: 4px;
-  padding: 10px 14px;
-  font-weight: 600;
-  background: linear-gradient(180deg, #7c3aed 0%, #6d28d9 100%);
-  border-color: #5b21b6;
-  color: #fff;
-}
-.task-modal-open-btn:hover {
-  border-color: #8b5cf6;
-  box-shadow: 0 6px 20px rgba(124, 58, 237, 0.35);
-}
 body.task-modal-open {
   overflow: hidden;
 }
@@ -495,20 +482,29 @@ body.task-modal-open {
   gap: 4px;
 }
 .task-modal-icon-btn {
-  background: transparent;
-  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: #f9fafb;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 8px;
   color: #555;
-  padding: 6px 10px;
-  border-radius: 6px;
   font-size: 1.1rem;
   line-height: 1;
   cursor: pointer;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.08);
+  transition: color 0.15s ease, background 0.15s ease, transform 0.2s ease, box-shadow 0.2s ease, border-color 0.15s ease, filter 0.2s ease;
 }
 .task-modal-icon-btn:hover {
-  background: #f3f4f6;
-  border-color: #e5e7eb;
-  transform: none;
-  box-shadow: none;
+  color: #fff;
+  background: var(--vault-btn-gradient, linear-gradient(135deg, #8b5cf6 0%, #22d3ee 100%));
+  border-color: transparent;
+  box-shadow: var(--vault-btn-shadow, 0 6px 24px rgba(139, 92, 246, 0.35));
+  transform: scale(0.96);
+  filter: brightness(1.05);
 }
 .task-modal-body {
   padding: 0 16px 12px;
@@ -661,29 +657,42 @@ body.task-modal-open {
 }
 .task-modal-apply {
   flex: 1;
+  margin: 0;
   padding: 12px 16px;
   font-weight: 600;
   font-size: 15px;
-  background: linear-gradient(180deg, #7c3aed 0%, #6d28d9 100%);
-  border-color: #5b21b6;
+  font-family: inherit;
+  border: none;
+  border-radius: 8px;
   color: #fff;
-  border-radius: 6px;
+  background: var(--vault-btn-gradient, linear-gradient(135deg, #8b5cf6 0%, #22d3ee 100%));
+  box-shadow: var(--vault-btn-shadow, 0 6px 24px rgba(139, 92, 246, 0.35), 0 4px 16px rgba(34, 211, 238, 0.15));
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease, filter 0.2s ease, opacity 0.2s ease;
 }
-.task-modal-apply:hover {
-  border-color: #8b5cf6;
-  box-shadow: 0 6px 18px rgba(124, 58, 237, 0.35);
+.task-modal-apply:hover:not(:disabled) {
+  transform: scale(0.98);
+  filter: brightness(1.06);
+  opacity: 0.95;
+  box-shadow: var(--vault-btn-shadow-hover, 0 8px 32px rgba(139, 92, 246, 0.45), 0 0 24px rgba(34, 211, 238, 0.35));
 }
 .task-modal-cancel {
+  margin: 0;
   padding: 12px 20px;
   font-weight: 600;
+  font-size: 14px;
+  font-family: inherit;
   background: #fff;
   color: #111;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
+  border: 1px solid rgba(139, 92, 246, 0.42);
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(139, 92, 246, 0.1);
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s ease, box-shadow 0.2s ease, background 0.15s ease;
 }
 .task-modal-cancel:hover {
-  background: #f9fafb;
-  transform: none;
-  box-shadow: none;
-  border-color: #9ca3af;
+  background: #fafafa;
+  transform: scale(0.98);
+  border-color: rgba(34, 211, 238, 0.45);
+  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.15);
 }

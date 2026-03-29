@@ -906,6 +906,89 @@ export async function writeVaultNote(relPath, fullSource) {
 
 /**
  * @param {string} relPath
+ */
+export async function deleteVaultNote(relPath) {
+  const norm = normalizeVaultRelPath(relPath);
+  assertVaultPathWritable(norm || "");
+  const abs = resolveVaultAbs(norm);
+  if (!abs) {
+    const err = new Error("Invalid vault path");
+    err.code = "VAULT_PATH_INVALID";
+    throw err;
+  }
+  try {
+    await fs.access(abs);
+  } catch {
+    const err = new Error("Note not found");
+    err.code = "VAULT_NOT_FOUND";
+    throw err;
+  }
+  await fs.unlink(abs);
+  invalidateVaultIndexCache();
+  try {
+    await fs.unlink(VAULT_GRAPH_CACHE);
+  } catch {
+    /* optional */
+  }
+  return { path: norm, updatedFile: path.relative(ROOT, abs).split(path.sep).join("/") };
+}
+
+/**
+ * @param {string} fromRel
+ * @param {string} toRel
+ * @param {{ overwrite?: boolean }} [opts]
+ */
+export async function moveVaultNote(fromRel, toRel, opts = {}) {
+  const fromNorm = normalizeVaultRelPath(fromRel);
+  const toNorm = normalizeVaultRelPath(toRel);
+  assertVaultPathWritable(fromNorm || "");
+  assertVaultPathWritable(toNorm || "");
+  const fromAbs = resolveVaultAbs(fromNorm);
+  const toAbs = resolveVaultAbs(toNorm);
+  if (!fromAbs || !toAbs) {
+    const err = new Error("Invalid vault path");
+    err.code = "VAULT_PATH_INVALID";
+    throw err;
+  }
+  try {
+    await fs.access(fromAbs);
+  } catch {
+    const err = new Error("Note not found");
+    err.code = "VAULT_NOT_FOUND";
+    throw err;
+  }
+  let destExists = false;
+  try {
+    await fs.access(toAbs);
+    destExists = true;
+  } catch {
+    destExists = false;
+  }
+  if (destExists && !opts.overwrite) {
+    const err = new Error("Destination already exists");
+    err.code = "VAULT_EXISTS";
+    throw err;
+  }
+  await fs.mkdir(path.dirname(toAbs), { recursive: true });
+  if (destExists && opts.overwrite) {
+    await fs.unlink(toAbs);
+  }
+  await fs.rename(fromAbs, toAbs);
+  invalidateVaultIndexCache();
+  try {
+    await fs.unlink(VAULT_GRAPH_CACHE);
+  } catch {
+    /* optional */
+  }
+  return {
+    from: fromNorm,
+    to: toNorm,
+    updatedFile: path.relative(ROOT, toAbs).split(path.sep).join("/")
+  };
+}
+
+/**
+ * @param {string} relPath
  * @param {{ title?: string, content?: string, source?: string }} [opts]
  */
 export async function createVaultNote(relPath, opts = {}) {

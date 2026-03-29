@@ -29,6 +29,7 @@ import {
   buildVaultIndex,
   buildVaultTree,
   createVaultNote,
+  deleteVaultNote,
   ensureVaultDir,
   getVaultExcalidrawPayload,
   getVaultFilePayload,
@@ -36,6 +37,7 @@ import {
   getVaultIndexCached,
   listVaultMarkdownRelPaths,
   listVaultTreeRelPaths,
+  moveVaultNote,
   normalizeVaultRelPath,
   searchVaultNotes,
   writeVaultNote
@@ -233,6 +235,56 @@ async function createApp() {
       }
       if (error.code === "VAULT_NOT_FOUND") {
         res.status(404).json({ ok: false, error: error.message });
+        return;
+      }
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.delete("/api/vault/file", async (req, res) => {
+    try {
+      const relPath = req.query.path || (req.body && req.body.path) || "";
+      const result = await deleteVaultNote(relPath);
+      const commit = await maybeAutoCommit({
+        slug: "vault",
+        message: `vault: delete ${result.path}`,
+        files: [result.updatedFile]
+      });
+      res.json({ ok: true, path: result.path, commit });
+    } catch (error) {
+      if (error.code === "VAULT_PATH_INVALID") {
+        res.status(400).json({ ok: false, error: error.message });
+        return;
+      }
+      if (error.code === "VAULT_NOT_FOUND") {
+        res.status(404).json({ ok: false, error: error.message });
+        return;
+      }
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post("/api/vault/move", async (req, res) => {
+    try {
+      const body = req.body || {};
+      const result = await moveVaultNote(body.from, body.to, { overwrite: Boolean(body.overwrite) });
+      const commit = await maybeAutoCommit({
+        slug: "vault",
+        message: `vault: move ${result.from} -> ${result.to}`,
+        files: [result.updatedFile]
+      });
+      res.json({ ok: true, ...result, commit });
+    } catch (error) {
+      if (error.code === "VAULT_PATH_INVALID") {
+        res.status(400).json({ ok: false, error: error.message });
+        return;
+      }
+      if (error.code === "VAULT_NOT_FOUND") {
+        res.status(404).json({ ok: false, error: error.message });
+        return;
+      }
+      if (error.code === "VAULT_EXISTS") {
+        res.status(409).json({ ok: false, error: error.message });
         return;
       }
       res.status(500).json({ ok: false, error: error.message });

@@ -1,13 +1,12 @@
 # Production Handbook
 
-Central index for production-ready operation, agent usage, CLI/MCP playbooks, and human UI workflows.
+Central index for production-ready operation, MCP/CLI automation, and human UI workflows.
 
 ## Start here by role
 
-- Agent operator:
-  - `docs/AGENT_PLAYBOOK.md`
-  - `docs/MCP_TOOL_REFERENCE.md`
-  - `docs/CLI_OPS_REFERENCE.md`
+- Assistant / MCP operator (Cursor and similar):
+  - `.cursor/skills/markdown-projects/SKILL.md` and `.cursor/skills/second-brain/SKILL.md` — each includes `references/` per [Agent Skills spec](https://agentskills.io/specification)
+  - Supporting contracts in `docs/`: `MCP_TOOL_REFERENCE.md`, `CLI_OPS_REFERENCE.md`, `CRUD_REFERENCE.md`
 - Human dashboard operator:
   - `docs/UI_USER_GUIDE.md`
 - Maintainer/on-call:
@@ -32,8 +31,6 @@ Central index for production-ready operation, agent usage, CLI/MCP playbooks, an
   - follow `docs/UI_USER_GUIDE.md` daily triage
 - CLI path:
   - `npm run ops:triage -- --maxEvents 20 --maxActions 20`
-- MCP path:
-  - `get_today_brief` -> `get_alerts` -> `resolve_safe_playbook_actions` -> verify
 
 ## Weekly
 
@@ -66,6 +63,8 @@ Central index for production-ready operation, agent usage, CLI/MCP playbooks, an
   - `README.md`
 - Data schema:
   - `docs/SCHEMA.md`
-- MCP usage and examples:
+- MCP client setup and safety:
   - `docs/MCP_USAGE.md`
-  - `docs/MCP_EXAMPLES.md`
+- MCP examples (assistants): `.cursor/skills/*/references/mcp-examples.md` (see `docs/MCP_EXAMPLES.md` for links)
+- CRUD index (projects, tasks, vault):
+  - `docs/CRUD_REFERENCE.md`

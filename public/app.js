@@ -1037,7 +1037,8 @@ function renderActionQueue(data) {
     if (action.safeExecute && action.projectSlug && action.executeHint === "update_project_meta") {
       const runBtn = document.createElement("button");
       runBtn.textContent = "Run";
-      runBtn.className = "smallBtn";
+      runBtn.type = "button";
+      runBtn.className = "vault-btn-new vault-btn-new--inline";
       runBtn.addEventListener("click", async () => {
         try {
           await saveProjectMeta(action.projectSlug, action.suggestedPatch || {});
