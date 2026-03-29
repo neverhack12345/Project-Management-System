@@ -24,12 +24,16 @@
     "ops:intake": "node scripts/intake-process.mjs",
     "mcp:start": "node src/mcp-server.js",
     "mcp:dev": "node src/mcp-server.js",
-    "mcp:smoke": "node scripts/mcp-smoke.mjs"
+    "mcp:smoke": "node scripts/mcp-smoke.mjs",
+    "diag:mermaid-expand": "node scripts/playwright-mermaid-expand-diag.mjs"
   },
   "dependencies": {
     "@excalidraw/utils": "^0.1.2",
     "@modelcontextprotocol/sdk": "^1.17.4",
     "express": "^4.21.2",
     "gray-matter": "^4.0.3"
+  },
+  "devDependencies": {
+    "playwright": "^1.50.1"
   }
 }

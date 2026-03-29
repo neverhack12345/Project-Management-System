@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Diagram</title>
+    <link rel="stylesheet" href="/diagram-standalone.css" />
+  </head>
+  <body class="diagram-standalone-page">
+    <header class="ds-toolbar">
+      <span class="ds-toolbar-title" id="dsTitle">Diagram</span>
+      <div class="ds-toolbar-actions">
+        <div class="ds-zoom" role="group" aria-label="Zoom">
+          <button type="button" class="ds-tool-btn" id="dsZoomOut" title="Zoom out" aria-label="Zoom out">
+            <span class="material-symbols-outlined ds-ms" aria-hidden="true">remove</span>
+          </button>
+          <span class="ds-zoom-label" id="dsZoomLabel" aria-live="polite">100%</span>
+          <button type="button" class="ds-tool-btn" id="dsZoomIn" title="Zoom in" aria-label="Zoom in">
+            <span class="material-symbols-outlined ds-ms" aria-hidden="true">add</span>
+          </button>
+          <button type="button" class="ds-tool-btn" id="dsZoomReset" title="Reset zoom" aria-label="Reset zoom">
+            <span class="material-symbols-outlined ds-ms" aria-hidden="true">fit_screen</span>
+          </button>
+        </div>
+      </div>
+    </header>
+    <main class="ds-main" id="dsMain">
+      <div id="dsScaled" class="ds-scaled" hidden></div>
+      <p id="dsMessage" class="ds-muted" hidden></p>
+    </main>
+    <script src="https://unpkg.com/@excalidraw/utils@0.1.2/dist/excalidraw-utils.min.js"></script>
+    <script type="module" src="/diagram-standalone.js"></script>
+  </body>
+</html>

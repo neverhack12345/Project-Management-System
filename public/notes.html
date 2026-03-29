@@ -39,21 +39,9 @@
           <span class="material-symbols-outlined vault-ms" aria-hidden="true">folder_open</span>
           Files
         </button>
-        <button type="button" class="vault-side-link" id="navSideSearch" data-side="search">
-          <span class="material-symbols-outlined vault-ms" aria-hidden="true">search</span>
-          Search
-        </button>
-        <button type="button" class="vault-side-link" id="navSideStarred" data-side="starred">
-          <span class="material-symbols-outlined vault-ms" aria-hidden="true">bookmark</span>
-          Bookmarks
-        </button>
         <button type="button" class="vault-side-link" id="navSideGraph" data-side="graph" data-panel="graph">
           <span class="material-symbols-outlined vault-ms" aria-hidden="true">hub</span>
           Graph
-        </button>
-        <button type="button" class="vault-side-link" id="navSideSettings" data-side="settings">
-          <span class="material-symbols-outlined vault-ms" aria-hidden="true">settings</span>
-          Settings
         </button>
       </nav>
 
@@ -69,13 +57,13 @@
           <p class="vault-starred-hint">Starred notes appear here. Open a note and click the star beside the title.</p>
           <ul id="starredList" class="vault-starred-list"></ul>
         </div>
-        <div id="sharedPlaceholder" class="vault-shared-placeholder hidden">
-          <p>Shared links and collaboration are not enabled for this local vault.</p>
-        </div>
       </div>
 
       <footer class="vault-sidebar-footer">
-        <a class="vault-footer-link" href="/">Markdown Projects</a>
+        <a class="vault-btn-new vault-btn-new--footer" href="/">
+          <span class="material-symbols-outlined vault-ms" aria-hidden="true">dashboard</span>
+          Markdown Projects
+        </a>
         <a class="vault-footer-link" href="#" id="vaultHelpLink">
           <span class="material-symbols-outlined vault-ms vault-ms-inline" aria-hidden="true">help</span>
           Help
@@ -94,12 +82,9 @@
       <div id="panelReader" class="vault-panel-reader">
         <header class="vault-main-top">
           <div class="vault-main-top-left">
-            <span class="vault-app-crumb">Obsidian Nocturne</span>
-            <span class="vault-main-top-divider" aria-hidden="true"></span>
             <div class="vault-view-tabs" role="tablist" aria-label="Note collections">
               <button type="button" class="vault-view-tab active" data-view="recent" role="tab" aria-selected="true">RECENT</button>
               <button type="button" class="vault-view-tab" data-view="starred" role="tab" aria-selected="false">STARRED</button>
-              <button type="button" class="vault-view-tab" data-view="shared" role="tab" aria-selected="false">SHARED</button>
             </div>
           </div>
           <div class="vault-main-top-right">
@@ -139,12 +124,23 @@
             <div id="noteTags" class="vault-tag-row hidden" aria-label="Tags"></div>
 
             <div class="vault-action-bar">
+              <button
+                type="button"
+                id="btnToggleSourceView"
+                class="vault-chip-btn"
+                title="Show raw file source"
+                aria-pressed="false"
+                disabled
+              >
+                Source
+              </button>
               <button type="button" id="btnEditNote" class="vault-chip-btn">Edit</button>
               <button type="button" id="btnSaveNote" class="vault-chip-btn vault-chip-primary hidden">Save</button>
               <button type="button" id="btnCancelEdit" class="vault-chip-btn hidden">Cancel</button>
             </div>
 
             <textarea id="noteEditor" class="vault-editor hidden" spellcheck="false" aria-label="Markdown source"></textarea>
+            <pre id="noteRawView" class="vault-raw-view hidden" aria-label="Raw source" tabindex="0"></pre>
             <article id="noteBody" class="vault-prose prose"></article>
 
             <div id="floatToolbar" class="vault-float-toolbar hidden" aria-label="Format">
@@ -206,6 +202,44 @@
       <div class="notes-dialog-actions">
         <button type="button" id="newNoteCreateBtn" class="notes-tab-btn">Create</button>
         <button type="button" id="newNoteCancelBtn" class="notes-tab-btn">Cancel</button>
+      </div>
+    </dialog>
+
+    <dialog id="diagramExpandDialog" class="vault-diagram-expand-dialog" aria-labelledby="diagramExpandTitle">
+      <div class="vault-diagram-expand-dialog-inner">
+        <div class="vault-diagram-expand-toolbar">
+          <span id="diagramExpandTitle" class="vault-diagram-expand-title">Diagram</span>
+          <div class="vault-diagram-expand-toolbar-actions">
+            <div class="vault-diagram-expand-zoom" role="group" aria-label="Zoom">
+              <button type="button" id="diagramExpandZoomOut" class="vault-diagram-expand-tool-btn" title="Zoom out" aria-label="Zoom out">
+                <span class="material-symbols-outlined vault-ms" aria-hidden="true">remove</span>
+              </button>
+              <span id="diagramExpandZoomLabel" class="vault-diagram-expand-zoom-label" aria-live="polite">100%</span>
+              <button type="button" id="diagramExpandZoomIn" class="vault-diagram-expand-tool-btn" title="Zoom in" aria-label="Zoom in">
+                <span class="material-symbols-outlined vault-ms" aria-hidden="true">add</span>
+              </button>
+              <button type="button" id="diagramExpandZoomReset" class="vault-diagram-expand-tool-btn" title="Reset zoom" aria-label="Reset zoom">
+                <span class="material-symbols-outlined vault-ms" aria-hidden="true">fit_screen</span>
+              </button>
+            </div>
+            <button
+              type="button"
+              id="diagramExpandOpenTab"
+              class="vault-diagram-expand-tool-btn vault-diagram-expand-open-tab"
+              title="Open diagram only in a new tab"
+              aria-label="Open diagram only in a new tab"
+              disabled
+            >
+              <span class="material-symbols-outlined vault-ms" aria-hidden="true">open_in_new</span>
+            </button>
+            <button type="button" id="diagramExpandClose" class="vault-diagram-expand-close" aria-label="Close diagram">
+              <span class="material-symbols-outlined vault-ms" aria-hidden="true">close</span>
+            </button>
+          </div>
+        </div>
+        <div id="diagramExpandBody" class="vault-diagram-expand-body">
+          <div id="diagramExpandScaled" class="vault-diagram-expand-scaled"></div>
+        </div>
       </div>
     </dialog>
 

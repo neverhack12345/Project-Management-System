@@ -26,8 +26,16 @@ const BAD_SEGMENT_CHARS = /[<>:"|?*\x00-\x1f]/;
  * @param {string} norm normalized vault-relative path
  * @returns {void}
  */
+function isVaultTextLeafExt(lowerPath) {
+  return (
+    lowerPath.endsWith(".md") ||
+    lowerPath.endsWith(".mmd") ||
+    lowerPath.endsWith(".mermaid")
+  );
+}
+
 export function assertVaultPathWritable(norm) {
-  if (!norm || !norm.toLowerCase().endsWith(".md")) {
+  if (!norm || !isVaultTextLeafExt(norm.toLowerCase())) {
     const err = new Error("Invalid vault path");
     err.code = "VAULT_PATH_INVALID";
     throw err;
@@ -47,10 +55,10 @@ export function assertVaultPathWritable(norm) {
   }
 }
 
-/** @returns {string|null} absolute filesystem path to a .md file under VAULT_DIR */
+/** @returns {string|null} absolute filesystem path to a vault text leaf (.md, .mmd, .mermaid) under VAULT_DIR */
 export function resolveVaultAbs(relPath) {
   const norm = normalizeVaultRelPath(relPath);
-  if (!norm || !norm.toLowerCase().endsWith(".md")) return null;
+  if (!norm || !isVaultTextLeafExt(norm.toLowerCase())) return null;
   const root = path.resolve(VAULT_DIR);
   const abs = path.resolve(root, norm);
   const relative = path.relative(root, abs);
@@ -134,12 +142,41 @@ export async function listVaultExcalidrawRelPaths() {
   return walkExcalidrawFiles(VAULT_DIR);
 }
 
-/** Markdown + Excalidraw leaves for the file tree (sorted, de-duplicated). */
+async function walkMermaidDiagramFiles(dir, base = "") {
+  const out = [];
+  let entries;
+  try {
+    entries = await fs.readdir(dir, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const entry of entries) {
+    const rel = base ? `${base}/${entry.name}` : entry.name;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...(await walkMermaidDiagramFiles(full, rel)));
+    } else if (entry.isFile()) {
+      const low = entry.name.toLowerCase();
+      if (low.endsWith(".mmd") || low.endsWith(".mermaid")) {
+        out.push(rel.split(path.sep).join("/"));
+      }
+    }
+  }
+  return out.sort((a, b) => a.localeCompare(b));
+}
+
+export async function listVaultMermaidDiagramRelPaths() {
+  await ensureVaultDir();
+  return walkMermaidDiagramFiles(VAULT_DIR);
+}
+
+/** Markdown + Mermaid diagram files + Excalidraw leaves for the file tree (sorted, de-duplicated). */
 export async function listVaultTreeRelPaths() {
   await ensureVaultDir();
   const md = await walkMarkdownFiles(VAULT_DIR);
+  const mermaid = await walkMermaidDiagramFiles(VAULT_DIR);
   const ex = await walkExcalidrawFiles(VAULT_DIR);
-  return [...new Set([...md, ...ex])].sort((a, b) => a.localeCompare(b));
+  return [...new Set([...md, ...mermaid, ...ex])].sort((a, b) => a.localeCompare(b));
 }
 
 function firstMarkdownHeading(content) {
@@ -149,7 +186,7 @@ function firstMarkdownHeading(content) {
 
 function fileStem(relPath) {
   const base = relPath.split("/").pop() || "";
-  return base.replace(/\.md$/i, "");
+  return base.replace(/\.(md|mmd|mermaid)$/i, "");
 }
 
 function slugify(value) {
@@ -194,10 +231,25 @@ function buildLookup(pathSet, metaByPath) {
   return lookup;
 }
 
+/**
+ * Wiki link target that clearly names a non-markdown file (e.g. [[img.png]]).
+ * Bare names without an extension are still treated as notes (title/path resolution).
+ */
+function isWikiLinkToNonMarkdownFile(pathPart) {
+  const p = String(pathPart || "").trim();
+  if (!p || /\.md$/i.test(p)) return false;
+  const seg = p.split("/").pop() || p;
+  const dot = seg.lastIndexOf(".");
+  if (dot <= 0) return false;
+  const ext = seg.slice(dot).toLowerCase();
+  if (ext === ".md") return false;
+  return /^\.[a-z0-9]+$/i.test(ext);
+}
+
 /** @param {string} body */
 function extractWikiLinkParts(body) {
   const out = [];
-  const re = /\[\[([^\]]+)\]\]/g;
+  const re = /(?<!!)\[\[([^\]]+)\]\]/g;
   let m;
   while ((m = re.exec(body))) {
     const inner = m[1].trim();
@@ -375,6 +427,131 @@ export function expandExcalidrawImageEmbeds(body, fromRel, exSet, lookup) {
   });
 }
 
+function mermaidFileStem(relPath) {
+  const base = relPath.split("/").pop() || "";
+  const l = base.toLowerCase();
+  if (l.endsWith(".mermaid")) return base.slice(0, -".mermaid".length);
+  if (l.endsWith(".mmd")) return base.slice(0, -".mmd".length);
+  return base.replace(/\.[^/.]+$/, "");
+}
+
+function buildMermaidLookup(mmdSet) {
+  const lookup = new Map();
+  for (const rel of mmdSet) {
+    const stem = mermaidFileStem(rel).toLowerCase();
+    registerLookup(lookup, stem, rel);
+    registerLookup(lookup, slugify(stem), rel);
+    const base = rel.split("/").pop() || "";
+    registerLookup(lookup, base.toLowerCase(), rel);
+  }
+  return lookup;
+}
+
+/**
+ * @param {string} fromRel
+ * @param {string} pathPart
+ * @param {Set<string>} mmdSet
+ * @param {Map<string, string|string[]>} lookup
+ */
+function resolveMermaidTarget(fromRel, pathPart, mmdSet, lookup) {
+  const pp = pathPart.trim();
+  if (!pp) return { resolved: null, ambiguous: false, candidates: undefined };
+
+  const fromDir = posix.dirname(fromRel);
+  const tryList = [];
+  const addTry = (rel) => {
+    const n = normalizeVaultRelPath(posix.normalize(rel));
+    if (n && mmdSet.has(n) && !tryList.includes(n)) tryList.push(n);
+  };
+
+  addTry(posix.join(fromDir, pp));
+  addTry(posix.join(fromDir, `${pp}.mmd`));
+  addTry(posix.join(fromDir, `${pp}.mermaid`));
+  addTry(pp);
+  addTry(`${pp}.mmd`);
+  addTry(`${pp}.mermaid`);
+
+  if (tryList.length === 1) return { resolved: tryList[0], ambiguous: false, candidates: undefined };
+  if (tryList.length > 1) return { resolved: null, ambiguous: true, candidates: tryList };
+
+  const noSlash = !pp.includes("/") && !pp.startsWith(".");
+  if (noSlash) {
+    const withoutExt = pp.replace(/\.mermaid$/i, "").replace(/\.mmd$/i, "").toLowerCase();
+    const hit = lookup.get(withoutExt);
+    if (Array.isArray(hit)) return { resolved: null, ambiguous: true, candidates: hit };
+    if (hit) return { resolved: hit, ambiguous: false, candidates: undefined };
+
+    const slugHit = lookup.get(slugify(withoutExt));
+    if (Array.isArray(slugHit)) return { resolved: null, ambiguous: true, candidates: slugHit };
+    if (slugHit) return { resolved: slugHit, ambiguous: false, candidates: undefined };
+
+    const fullHit = lookup.get(pp.toLowerCase());
+    if (Array.isArray(fullHit)) return { resolved: null, ambiguous: true, candidates: fullHit };
+    if (fullHit) return { resolved: fullHit, ambiguous: false, candidates: undefined };
+  }
+
+  return { resolved: null, ambiguous: false, candidates: undefined };
+}
+
+/** Same rules as client extractMermaidSourceFromFile — normalize .mmd file body for a fenced block. */
+function extractMermaidSourceForPreview(text) {
+  const s = String(text || "").trim();
+  const fenced = s.match(/^```mermaid\s*\r?\n([\s\S]*?)\r?\n```\s*$/i);
+  if (fenced) return fenced[1].trim();
+  const generic = s.match(/^```\s*\r?\n([\s\S]*?)\r?\n```\s*$/);
+  if (generic) {
+    const inner = generic[1].trim();
+    if (
+      /^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram-v2|stateDiagram|erDiagram|journey|gantt|pie|mindmap|timeline|sankey-beta|quadrantChart|gitgraph|C4Context|block-beta)/i.test(
+        inner
+      )
+    ) {
+      return inner;
+    }
+  }
+  return s;
+}
+
+/**
+ * Obsidian-style ![[diagram.mmd]] / ![[diagram.mermaid]] → fenced ```mermaid for client render.
+ */
+export async function expandMermaidImageEmbeds(body, fromRel, mmdSet, lookup) {
+  const s = String(body || "");
+  const re = /!\[\[([^\]]+)\]\]/g;
+  let m;
+  let last = 0;
+  const chunks = [];
+  while ((m = re.exec(s)) !== null) {
+    chunks.push(s.slice(last, m.index));
+    const trimmed = m[1].trim();
+    const pipe = trimmed.indexOf("|");
+    const target = (pipe >= 0 ? trimmed.slice(0, pipe) : trimmed).trim();
+    const hashIdx = target.indexOf("#");
+    const pathPart = hashIdx >= 0 ? target.slice(0, hashIdx).trim() : target;
+    if (!pathPart) {
+      chunks.push(m[0]);
+    } else {
+      const { resolved, ambiguous } = resolveMermaidTarget(fromRel, pathPart, mmdSet, lookup);
+      if (resolved && !ambiguous) {
+        try {
+          const { source } = await readVaultPlainTextLeaf(resolved);
+          const diagram = extractMermaidSourceForPreview(source);
+          chunks.push(`\n\n\`\`\`mermaid\n${diagram}\n\`\`\`\n\n`);
+        } catch {
+          chunks.push(
+            `\n\n<p class="vault-link-broken">Could not load Mermaid diagram <code>${escapeAttrForVaultHtml(resolved)}</code></p>\n\n`
+          );
+        }
+      } else {
+        chunks.push(m[0]);
+      }
+    }
+    last = m.index + m[0].length;
+  }
+  chunks.push(s.slice(last));
+  return chunks.join("");
+}
+
 export async function readVaultExcalidrawJson(relPath) {
   const norm = normalizeVaultRelPath(relPath);
   if (!norm || !isExcalidrawVaultRelPath(norm)) {
@@ -503,6 +680,8 @@ export async function buildVaultIndex() {
   const outgoing = {};
   const backlinks = {};
   const edges = [];
+  const seenOkEdge = new Set();
+  const seenBrokenEdge = new Set();
 
   for (const rel of paths) {
     outgoing[rel] = [];
@@ -516,6 +695,8 @@ export async function buildVaultIndex() {
 
     const parts = [...extractWikiLinkParts(body), ...extractMarkdownFileLinks(body)];
     for (const { pathPart, kind } of parts) {
+      if (kind === "wiki" && isWikiLinkToNonMarkdownFile(pathPart)) continue;
+
       const { resolved, ambiguous, candidates } = resolveLinkTarget(rel, pathPart, pathSet, lookup);
       outgoing[rel].push({
         pathPart,
@@ -527,15 +708,23 @@ export async function buildVaultIndex() {
       if (resolved) {
         if (!backlinks[resolved]) backlinks[resolved] = [];
         if (!backlinks[resolved].includes(rel)) backlinks[resolved].push(rel);
-        edges.push({ from: rel, to: resolved, ok: true });
+        const okKey = `${rel}\0${resolved}`;
+        if (!seenOkEdge.has(okKey)) {
+          seenOkEdge.add(okKey);
+          edges.push({ from: rel, to: resolved, ok: true });
+        }
       } else {
-        edges.push({
-          from: rel,
-          to: pathPart,
-          ok: false,
-          ambiguous,
-          candidates
-        });
+        const brKey = `${rel}\0${pathPart}\0${ambiguous ? "1" : "0"}`;
+        if (!seenBrokenEdge.has(brKey)) {
+          seenBrokenEdge.add(brKey);
+          edges.push({
+            from: rel,
+            to: pathPart,
+            ok: false,
+            ambiguous,
+            candidates
+          });
+        }
       }
     }
   }
@@ -600,9 +789,51 @@ export async function getVaultOutgoingFor(relPath) {
   return index.outgoing[norm] || [];
 }
 
+async function readVaultPlainTextLeaf(norm) {
+  const abs = resolveVaultAbs(norm);
+  if (!abs) {
+    const err = new Error("Invalid vault path");
+    err.code = "VAULT_PATH_INVALID";
+    throw err;
+  }
+  let raw;
+  try {
+    raw = await fs.readFile(abs, "utf8");
+  } catch (e) {
+    if (e && e.code === "ENOENT") {
+      const err = new Error("Note not found");
+      err.code = "VAULT_NOT_FOUND";
+      throw err;
+    }
+    throw e;
+  }
+  return { path: norm, source: raw };
+}
+
 export async function getVaultFilePayload(relPath) {
   const norm = normalizeVaultRelPath(relPath);
-  if (!norm || !norm.toLowerCase().endsWith(".md")) {
+  if (!norm) {
+    const err = new Error("Invalid vault path");
+    err.code = "VAULT_PATH_INVALID";
+    throw err;
+  }
+  const lower = norm.toLowerCase();
+  if (lower.endsWith(".mmd") || lower.endsWith(".mermaid")) {
+    const { path, source } = await readVaultPlainTextLeaf(norm);
+    return {
+      path,
+      kind: "mermaid",
+      content: source,
+      source,
+      previewMarkdown: "",
+      data: {},
+      title: fileStem(norm),
+      aliases: [],
+      outgoing: [],
+      backlinks: []
+    };
+  }
+  if (!lower.endsWith(".md")) {
     const err = new Error("Invalid vault path");
     err.code = "VAULT_PATH_INVALID";
     throw err;
@@ -615,12 +846,17 @@ export async function getVaultFilePayload(relPath) {
   const excalidrawPaths = await listVaultExcalidrawRelPaths();
   const exSet = new Set(excalidrawPaths);
   const exLookup = buildExcalidrawLookup(exSet);
+  const mermaidPaths = await listVaultMermaidDiagramRelPaths();
+  const mmdSet = new Set(mermaidPaths);
+  const mmdLookup = buildMermaidLookup(mmdSet);
   let previewBody = note.content;
   previewBody = expandExcalidrawFenceEmbeds(previewBody, norm, exSet, exLookup);
+  previewBody = await expandMermaidImageEmbeds(previewBody, norm, mmdSet, mmdLookup);
   previewBody = expandExcalidrawImageEmbeds(previewBody, norm, exSet, exLookup);
   const previewMarkdown = expandWikiLinksForPreview(previewBody, norm, pathSet, lookup);
   return {
     path: note.path,
+    kind: "markdown",
     content: note.content,
     source: note.source,
     previewMarkdown,
@@ -674,6 +910,11 @@ export async function writeVaultNote(relPath, fullSource) {
  */
 export async function createVaultNote(relPath, opts = {}) {
   const norm = normalizeVaultRelPath(relPath);
+  if (!norm || !norm.toLowerCase().endsWith(".md")) {
+    const err = new Error("Invalid vault path");
+    err.code = "VAULT_PATH_INVALID";
+    throw err;
+  }
   assertVaultPathWritable(norm || "");
   const abs = resolveVaultAbs(norm);
   if (!abs) {
@@ -717,6 +958,7 @@ export async function createVaultNote(relPath, opts = {}) {
 export function vaultLeafKind(relPath) {
   const l = relPath.toLowerCase();
   if (l.endsWith(".excalidraw.json") || l.endsWith(".excalidraw")) return "excalidraw";
+  if (l.endsWith(".mmd") || l.endsWith(".mermaid")) return "mermaid";
   return "md";
 }
 
@@ -765,7 +1007,11 @@ async function maxVaultMtimeMs() {
   const paths = await listVaultTreeRelPaths();
   let max = 0;
   for (const rel of paths) {
-    const abs = rel.toLowerCase().endsWith(".md") ? resolveVaultAbs(rel) : resolveVaultExcalidrawAbs(rel);
+    const rl = rel.toLowerCase();
+    const abs =
+      rl.endsWith(".excalidraw.json") || rl.endsWith(".excalidraw")
+        ? resolveVaultExcalidrawAbs(rel)
+        : resolveVaultAbs(rel);
     if (!abs) continue;
     try {
       const st = await fs.stat(abs);
@@ -811,7 +1057,7 @@ export async function getVaultGraphWithOptionalDiskCache() {
  * @param {Map<string, string|string[]>} lookup
  */
 export function expandWikiLinksForPreview(body, fromRel, pathSet, lookup) {
-  return String(body || "").replace(/\[\[([^\]]+)\]\]/g, (full, inner) => {
+  return String(body || "").replace(/(?<!!)\[\[([^\]]+)\]\]/g, (full, inner) => {
     const trimmed = inner.trim();
     const pipe = trimmed.indexOf("|");
     const target = (pipe >= 0 ? trimmed.slice(0, pipe) : trimmed).trim();

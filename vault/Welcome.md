@@ -15,11 +15,7 @@ This folder is your **second brain**: Obsidian-style notes with wiki links and M
 
 ## Mermaid sample
 
-```mermaid
-flowchart LR
-  A[Note] --> B[Link graph]
-  B --> C[Backlinks]
-```
+![[diagrams/sample.mmd]]
 
 ## Excalidraw sample
 

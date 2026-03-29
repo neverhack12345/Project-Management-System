@@ -1,16 +1,28 @@
 import { marked } from "https://esm.sh/marked@12.0.2";
 import DOMPurify from "https://esm.sh/dompurify@3.1.7";
-import mermaid from "https://esm.sh/mermaid@11.4.1";
+import {
+  initVaultMermaid,
+  isExcalidrawVaultPath,
+  isMermaidVaultPath,
+  getVaultDiagramKind,
+  extractMermaidSourceFromFile,
+  extractMermaidBlockFromMarkdown,
+  graphMermaidSource,
+  runMermaidOnElements,
+  renderMermaidSvgInto,
+  hydrateExcalidrawEmbeds,
+  renderVaultDiagramFile
+} from "./vault-diagram-render.js";
 
 marked.use({ gfm: true, breaks: true });
 
-mermaid.initialize({
-  startOnLoad: false,
-  theme: "dark",
-  securityLevel: "strict"
-});
+initVaultMermaid();
 
 const STARRED_STORAGE_KEY = "vault_starred_paths_v1";
+const VIEW_PREF_KEY = "vault_notes_view_rendered_v1";
+
+/** When true, show raw file text instead of rendered preview (markdown / mermaid). */
+let preferSourceView = localStorage.getItem(VIEW_PREF_KEY) === "raw";
 
 const vaultTreeEl = document.getElementById("vaultTree");
 const noteBodyEl = document.getElementById("noteBody");
@@ -31,19 +43,17 @@ const btnNewNote = document.getElementById("btnNewNote");
 const btnSaveNote = document.getElementById("btnSaveNote");
 const btnCancelEdit = document.getElementById("btnCancelEdit");
 const noteEditorEl = document.getElementById("noteEditor");
+const noteRawViewEl = document.getElementById("noteRawView");
+const btnToggleSourceView = document.getElementById("btnToggleSourceView");
 const floatToolbar = document.getElementById("floatToolbar");
 const badgeEditing = document.getElementById("badgeEditing");
 const badgeReadTime = document.getElementById("badgeReadTime");
 const btnStarNote = document.getElementById("btnStarNote");
 const navSideFiles = document.getElementById("navSideFiles");
-const navSideSearch = document.getElementById("navSideSearch");
-const navSideStarred = document.getElementById("navSideStarred");
 const navSideGraph = document.getElementById("navSideGraph");
-const navSideSettings = document.getElementById("navSideSettings");
 const vaultTreeHost = document.getElementById("vaultTreeHost");
 const starredListHost = document.getElementById("starredListHost");
 const starredListEl = document.getElementById("starredList");
-const sharedPlaceholder = document.getElementById("sharedPlaceholder");
 const backFromGraphBtn = document.getElementById("backFromGraphBtn");
 const btnToggleInspector = document.getElementById("btnToggleInspector");
 const vaultHelpLink = document.getElementById("vaultHelpLink");
@@ -53,8 +63,24 @@ const newNotePath = document.getElementById("newNotePath");
 const newNoteTitle = document.getElementById("newNoteTitle");
 const newNoteCreateBtn = document.getElementById("newNoteCreateBtn");
 const newNoteCancelBtn = document.getElementById("newNoteCancelBtn");
+const diagramExpandDialog = document.getElementById("diagramExpandDialog");
+const diagramExpandScaled = document.getElementById("diagramExpandScaled");
+const diagramExpandClose = document.getElementById("diagramExpandClose");
+const diagramExpandZoomIn = document.getElementById("diagramExpandZoomIn");
+const diagramExpandZoomOut = document.getElementById("diagramExpandZoomOut");
+const diagramExpandZoomReset = document.getElementById("diagramExpandZoomReset");
+const diagramExpandZoomLabel = document.getElementById("diagramExpandZoomLabel");
+const diagramExpandOpenTab = document.getElementById("diagramExpandOpenTab");
+
+const VAULT_DIAG_SRC_PREFIX = "vaultDiagSrc:";
+const VAULT_DIAG_OPEN_PREFIX = "vaultDiagOpen:";
+/** Inline ```mermaid``` source keyed by wrap element — survives when localStorage is unavailable. */
+const vaultMermaidSrcByWrap = new WeakMap();
 
 let currentPath = "";
+let diagramExpandFocusReturn = null;
+let diagramExpandScale = 1;
+let diagramExpandActiveHost = null;
 let currentSource = "";
 let isEditing = false;
 let currentListView = "recent";
@@ -154,8 +180,10 @@ function syncSidebarNav() {
   const graphVisible = panelGraph && !panelGraph.classList.contains("hidden");
   const readerVisible = panelReader && !panelReader.classList.contains("hidden");
   navSideGraph?.classList.toggle("active", graphVisible);
-  navSideFiles?.classList.toggle("active", readerVisible && currentListView === "recent" && !graphVisible);
-  navSideStarred?.classList.toggle("active", readerVisible && currentListView === "starred" && !graphVisible);
+  navSideFiles?.classList.toggle(
+    "active",
+    readerVisible && (currentListView === "recent" || currentListView === "starred") && !graphVisible
+  );
 }
 
 function setListView(view) {
@@ -167,9 +195,53 @@ function setListView(view) {
   });
   if (vaultTreeHost) vaultTreeHost.classList.toggle("hidden", view !== "recent");
   if (starredListHost) starredListHost.classList.toggle("hidden", view !== "starred");
-  if (sharedPlaceholder) sharedPlaceholder.classList.toggle("hidden", view !== "shared");
   if (view === "starred") renderStarredList();
   syncSidebarNav();
+}
+
+function canToggleRenderedSource() {
+  return (
+    Boolean(currentPath) &&
+    !btnEditNote.disabled &&
+    (currentPath.toLowerCase().endsWith(".md") || isMermaidVaultPath(currentPath)) &&
+    typeof currentSource === "string"
+  );
+}
+
+function syncSourceToggleButton() {
+  if (!btnToggleSourceView) return;
+  const available = canToggleRenderedSource() && !isEditing;
+  btnToggleSourceView.disabled = !available;
+  btnToggleSourceView.textContent = available && preferSourceView ? "Rendered" : "Source";
+  btnToggleSourceView.title = available
+    ? preferSourceView
+      ? "Show rendered preview"
+      : "Show raw file source (no formatting)"
+    : "Source view not available for this file";
+  btnToggleSourceView.setAttribute("aria-pressed", available && preferSourceView ? "true" : "false");
+}
+
+/** Applies rendered vs raw layout for the reader (not used while editing). */
+function applyViewMode() {
+  if (!noteRawViewEl) return;
+  if (isEditing) return;
+
+  if (isExcalidrawVaultPath(currentPath) || !canToggleRenderedSource()) {
+    noteRawViewEl.classList.add("hidden");
+    noteBodyEl.classList.remove("hidden");
+    syncSourceToggleButton();
+    return;
+  }
+
+  if (preferSourceView) {
+    noteRawViewEl.textContent = currentSource;
+    noteRawViewEl.classList.remove("hidden");
+    noteBodyEl.classList.add("hidden");
+  } else {
+    noteRawViewEl.classList.add("hidden");
+    noteBodyEl.classList.remove("hidden");
+  }
+  syncSourceToggleButton();
 }
 
 function setEditUi(editing) {
@@ -179,10 +251,18 @@ function setEditUi(editing) {
   btnSaveNote.classList.toggle("hidden", !editing);
   btnCancelEdit.classList.toggle("hidden", !editing);
   noteEditorEl.classList.toggle("hidden", !editing);
-  noteBodyEl.classList.toggle("hidden", editing);
   btnEditNote.disabled = !currentPath;
   if (floatToolbar) floatToolbar.classList.toggle("hidden", !editing);
   if (badgeEditing) badgeEditing.classList.toggle("hidden", !editing);
+  if (editing) {
+    noteBodyEl.classList.add("hidden");
+    noteRawViewEl?.classList.add("hidden");
+  } else {
+    applyViewMode();
+  }
+  if (editing) {
+    syncSourceToggleButton();
+  }
 }
 
 function exitEditModeSilent() {
@@ -200,14 +280,81 @@ function posixNormalize(parts) {
   return stack.join("/");
 }
 
-/** Resolve a relative or same-dir .md href against current note path */
+/** Whether a vault-relative path points at a note or Mermaid diagram file. */
+function isVaultInternalLinkTarget(pathSansFragment) {
+  const p = pathSansFragment.split("#")[0].toLowerCase();
+  return p.endsWith(".md") || p.endsWith(".mmd") || p.endsWith(".mermaid");
+}
+
+/** Resolve a relative or same-dir vault link (.md / .mmd / .mermaid) against current file path */
 function resolveMarkdownHref(fromPath, href) {
   const [pathPart, frag] = href.split("#");
   const dir = fromPath.includes("/") ? fromPath.slice(0, fromPath.lastIndexOf("/")) : "";
   const segments = pathPart.startsWith("/") ? pathPart.slice(1).split("/") : [...dir.split("/").filter(Boolean), ...pathPart.split("/")];
   const resolved = posixNormalize(segments);
-  if (!resolved || !resolved.toLowerCase().endsWith(".md")) return null;
+  if (!resolved || !isVaultInternalLinkTarget(resolved)) return null;
   return frag ? `${resolved}#${frag}` : resolved;
+}
+
+/**
+ * Turn Obsidian `![[path.mmd]]` and markdown `![](path.mmd)` into ```mermaid fences before marked.parse.
+ * Fixes broken <img> for .mmd/.mermaid URLs and covers stale API preview without server-side embed expansion.
+ */
+async function preprocessMarkdownMermaidEmbeds(markdown, fromPath) {
+  const cache = new Map();
+  async function loadDiagramText(pathOnly) {
+    if (cache.has(pathOnly)) return cache.get(pathOnly);
+    const res = await fetch(`/api/vault/file?path=${encodeURIComponent(pathOnly)}`);
+    const data = await res.json().catch(() => ({}));
+    const ok = res.ok && data.kind === "mermaid";
+    const text = ok ? extractMermaidSourceFromFile(data.source || "") : null;
+    cache.set(pathOnly, text);
+    return text;
+  }
+
+  let md = String(markdown || "");
+
+  const wikiRe = /!\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g;
+  for (const m of [...md.matchAll(wikiRe)]) {
+    const full = m[0];
+    const target = m[1].trim().split("#")[0].trim();
+    if (!target) continue;
+    const tl = target.toLowerCase();
+    if (!tl.endsWith(".mmd") && !tl.endsWith(".mermaid")) continue;
+    let pathPart = target;
+    try {
+      pathPart = decodeURIComponent(pathPart.replace(/\+/g, "%20"));
+    } catch {
+      /* keep */
+    }
+    const resolved = resolveMarkdownHref(fromPath, pathPart);
+    if (!resolved) continue;
+    const pathOnly = resolved.split("#")[0];
+    const diagramText = await loadDiagramText(pathOnly);
+    if (diagramText == null) continue;
+    md = md.replaceAll(full, `\n\n\`\`\`mermaid\n${diagramText}\n\`\`\`\n\n`);
+  }
+
+  const imgRe = /!\[([^\]]*)\]\(([^)]+)\)/g;
+  for (const m of [...md.matchAll(imgRe)]) {
+    const full = m[0];
+    let dest = m[2].trim().split("#")[0].trim();
+    try {
+      dest = decodeURIComponent(dest.replace(/\+/g, "%20"));
+    } catch {
+      /* keep */
+    }
+    const dLower = dest.toLowerCase();
+    if (!dLower.endsWith(".mmd") && !dLower.endsWith(".mermaid")) continue;
+    const resolved = resolveMarkdownHref(fromPath, dest);
+    if (!resolved) continue;
+    const pathOnly = resolved.split("#")[0];
+    const diagramText = await loadDiagramText(pathOnly);
+    if (diagramText == null) continue;
+    md = md.replaceAll(full, `\n\n\`\`\`mermaid\n${diagramText}\n\`\`\`\n\n`);
+  }
+
+  return md;
 }
 
 function escapeAttr(s) {
@@ -246,7 +393,7 @@ function rewriteRelativeMarkdownLinks(html, fromPath) {
     const href = a.getAttribute("href");
     if (!href || href === "#" || /^https?:\/\//i.test(href) || href.startsWith("mailto:")) continue;
     if (a.hasAttribute("data-vault-path") || a.hasAttribute("data-vault-broken")) continue;
-    if (!href.toLowerCase().includes(".md")) continue;
+    if (!isVaultInternalLinkTarget(href.split("#")[0])) continue;
     const resolved = resolveMarkdownHref(fromPath, href);
     if (resolved) {
       a.setAttribute("href", "#");
@@ -265,82 +412,268 @@ function sanitizeNoteHtml(html) {
   });
 }
 
+function newVaultDiagSrcKey() {
+  return typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `mmd_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function promoteMermaidBlocks(rootEl) {
+  let blockIndex = 0;
   for (const pre of rootEl.querySelectorAll("pre code.language-mermaid")) {
     const code = pre.textContent || "";
+    const key = newVaultDiagSrcKey();
+    try {
+      localStorage.setItem(`${VAULT_DIAG_SRC_PREFIX}${key}`, code);
+    } catch {
+      /* quota — open-in-tab for inline mermaid may be unavailable */
+    }
+    const wrap = document.createElement("div");
+    wrap.className = "vault-mermaid-wrap";
+    wrap.dataset.vaultMermaidSrcKey = key;
+    wrap.dataset.vaultMermaidBlockIndex = String(blockIndex);
+    blockIndex++;
+    vaultMermaidSrcByWrap.set(wrap, code);
     const mPre = document.createElement("pre");
     mPre.className = "mermaid";
     mPre.textContent = code;
-    pre.parentElement.replaceWith(mPre);
+    wrap.appendChild(mPre);
+    pre.parentElement.replaceWith(wrap);
   }
 }
 
 async function runMermaidIn(rootEl) {
   const nodes = rootEl.querySelectorAll("pre.mermaid");
   if (!nodes.length) return;
-  try {
-    await mermaid.run({ nodes: [...nodes] });
-  } catch (e) {
-    console.warn("Mermaid render:", e);
+  await runMermaidOnElements([...nodes]);
+}
+
+function collectDiagramExpandHosts(rootEl) {
+  if (!rootEl) return [];
+  const seen = new Set();
+  const out = [];
+  const add = (el) => {
+    if (!el || seen.has(el)) return;
+    seen.add(el);
+    out.push(el);
+  };
+  rootEl.querySelectorAll(".vault-mermaid-wrap").forEach(add);
+  rootEl.querySelectorAll("[data-vault-excalidraw]").forEach(add);
+  rootEl.querySelectorAll(".mermaid").forEach((el) => {
+    if (!el.closest(".vault-mermaid-wrap")) add(el);
+  });
+  return out;
+}
+
+function decorateDiagramExpandControls(rootEl) {
+  if (!rootEl) return;
+  for (const host of collectDiagramExpandHosts(rootEl)) {
+    if (host.dataset.vaultExpandDecorated === "1") continue;
+    if (!host.querySelector("svg")) continue;
+    if (host.querySelector(".vault-diagram-expand-btn")) continue;
+    host.classList.add("vault-diagram-expand-host");
+    host.setAttribute("tabindex", "0");
+    host.dataset.vaultExpandDecorated = "1";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "vault-diagram-expand-btn";
+    btn.setAttribute("aria-label", "Expand diagram");
+    btn.title = "Expand diagram";
+    btn.innerHTML =
+      '<span class="material-symbols-outlined vault-ms" aria-hidden="true">open_in_full</span>';
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      void openDiagramExpand(host);
+    });
+    host.appendChild(btn);
   }
 }
 
-async function hydrateExcalidrawEmbeds(rootEl) {
-  const exportToSvg = globalThis.ExcalidrawUtils?.exportToSvg;
-  const nodes = rootEl.querySelectorAll("[data-vault-excalidraw]");
-  if (!nodes.length) return;
-  if (typeof exportToSvg !== "function") {
-    for (const el of nodes) {
-      el.innerHTML = '<p class="vault-excalidraw-error">Excalidraw library failed to load.</p>';
+function applyDiagramExpandZoomTransform() {
+  if (!diagramExpandScaled) return;
+  const s = diagramExpandScale;
+  /* Avoid CSS `zoom` — it breaks flex sizing for dialog content in Chromium (blank expand view). */
+  diagramExpandScaled.style.zoom = "";
+  diagramExpandScaled.style.transform = s === 1 ? "" : `scale(${s})`;
+  if (diagramExpandZoomLabel) diagramExpandZoomLabel.textContent = `${Math.round(s * 100)}%`;
+}
+
+function setDiagramExpandZoom(next) {
+  diagramExpandScale = Math.min(4, Math.max(0.25, next));
+  applyDiagramExpandZoomTransform();
+}
+
+function resetDiagramExpandZoom() {
+  diagramExpandScale = 1;
+  if (diagramExpandScaled) {
+    diagramExpandScaled.style.zoom = "";
+    diagramExpandScaled.style.transform = "";
+  }
+  if (diagramExpandZoomLabel) diagramExpandZoomLabel.textContent = "100%";
+}
+
+function buildDiagramStandalonePayload(host) {
+  if (!host) return null;
+  const ex = host.getAttribute("data-vault-excalidraw");
+  if (ex) return { v: 1, kind: "excalidraw", path: ex };
+  if (host.classList.contains("vault-mermaid-wrap")) {
+    const source = getMermaidInlineSourceForWrap(host);
+    if (source == null) return null;
+    return { v: 1, kind: "mermaidSource", source };
+  }
+  if (host.classList.contains("mermaid") && !host.closest(".vault-mermaid-wrap")) {
+    if (mermaidGraphHost && mermaidGraphHost.contains(host)) {
+      return { v: 1, kind: "graph" };
     }
+    if (isMermaidVaultPath(currentPath)) {
+      return { v: 1, kind: "mermaidFile", path: currentPath };
+    }
+  }
+  return null;
+}
+
+function openDiagramStandaloneFromHost(host) {
+  const payload = buildDiagramStandalonePayload(host);
+  if (!payload) {
+    showFlash("Cannot open this diagram in a new tab.", true);
     return;
   }
-  for (const el of nodes) {
-    const p = el.getAttribute("data-vault-excalidraw");
-    if (!p) continue;
-    el.innerHTML = '<p class="muted">Loading diagram…</p>';
-    try {
-      const res = await fetch(`/api/vault/excalidraw?path=${encodeURIComponent(p)}`);
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        el.innerHTML = `<p class="vault-excalidraw-error">${escapeAttr(data.error || `Failed (${res.status})`)}</p>`;
-        continue;
+  const token = newVaultDiagSrcKey();
+  try {
+    localStorage.setItem(`${VAULT_DIAG_OPEN_PREFIX}${token}`, JSON.stringify(payload));
+  } catch {
+    showFlash("Could not stage diagram for a new tab (storage full).", true);
+    return;
+  }
+  const baseHref = window.location.pathname.endsWith("/")
+    ? `${window.location.origin}${window.location.pathname}`
+    : `${window.location.origin}${window.location.pathname.replace(/[^/]+$/, "/")}`;
+  const url = new URL("diagram-standalone.html", baseHref);
+  url.searchParams.set("t", token);
+  const w = window.open(url.href, "_blank", "noopener,noreferrer");
+  if (!w) showFlash("Pop-up blocked — allow pop-ups for this site.", true);
+}
+
+/** Top-level SVG elements under host (skip nested SVGs so clones keep defs). */
+function getDiagramRootSvgs(host) {
+  const roots = [];
+  for (const svg of host.querySelectorAll("svg")) {
+    let p = svg.parentElement;
+    let nestedInSvg = false;
+    while (p && p !== host) {
+      if (p.tagName && String(p.tagName).toLowerCase() === "svg") {
+        nestedInSvg = true;
+        break;
       }
-      const scene = data.scene;
-      if (!scene || !Array.isArray(scene.elements)) {
-        el.innerHTML = '<p class="vault-excalidraw-error">Invalid diagram data</p>';
-        continue;
-      }
-      const svg = await exportToSvg({
-        elements: scene.elements,
-        appState: scene.appState || {},
-        files: scene.files || {}
-      });
-      el.innerHTML = "";
-      if (svg && String(svg.nodeName || "").toLowerCase() === "svg") {
-        el.appendChild(svg);
-      } else {
-        el.innerHTML = '<p class="vault-excalidraw-error">Could not render diagram</p>';
-      }
-    } catch (e) {
-      el.innerHTML = `<p class="vault-excalidraw-error">${escapeAttr(e.message || String(e))}</p>`;
+      p = p.parentElement;
+    }
+    if (!nestedInSvg) roots.push(svg);
+  }
+  return roots;
+}
+
+async function openDiagramExpand(host) {
+  if (!diagramExpandDialog || !diagramExpandScaled || !host) return;
+  diagramExpandActiveHost = host;
+  diagramExpandScaled.innerHTML = "";
+  resetDiagramExpandZoom();
+  applyDiagramExpandZoomTransform();
+
+  const canTab = buildDiagramStandalonePayload(host) != null;
+  if (diagramExpandOpenTab) diagramExpandOpenTab.disabled = !canTab;
+  diagramExpandFocusReturn = document.activeElement;
+  diagramExpandDialog.showModal();
+
+  const mermaidOk = await tryRenderMermaidInExpandDialog(host);
+  if (!mermaidOk) {
+    const roots = getDiagramRootSvgs(host);
+    if (!roots.length) {
+      diagramExpandDialog.close();
+      return;
+    }
+    for (const svg of roots) {
+      diagramExpandScaled.appendChild(svg.cloneNode(true));
     }
   }
 }
 
-function isExcalidrawVaultPath(p) {
+function finalizeDiagramUi() {
+  if (noteBodyEl && !noteBodyEl.classList.contains("hidden")) {
+    decorateDiagramExpandControls(noteBodyEl);
+  }
+}
+
+function initDiagramExpandDialog() {
+  if (!diagramExpandDialog || !diagramExpandScaled || !diagramExpandClose) return;
+  diagramExpandClose.addEventListener("click", () => diagramExpandDialog.close());
+  diagramExpandZoomIn?.addEventListener("click", () => setDiagramExpandZoom(diagramExpandScale * 1.25));
+  diagramExpandZoomOut?.addEventListener("click", () => setDiagramExpandZoom(diagramExpandScale / 1.25));
+  diagramExpandZoomReset?.addEventListener("click", () => {
+    resetDiagramExpandZoom();
+    applyDiagramExpandZoomTransform();
+  });
+  diagramExpandOpenTab?.addEventListener("click", () => {
+    if (diagramExpandActiveHost) openDiagramStandaloneFromHost(diagramExpandActiveHost);
+  });
+  diagramExpandDialog.addEventListener("close", () => {
+    diagramExpandScaled.innerHTML = "";
+    diagramExpandActiveHost = null;
+    resetDiagramExpandZoom();
+    if (diagramExpandOpenTab) diagramExpandOpenTab.disabled = true;
+    const el = diagramExpandFocusReturn;
+    diagramExpandFocusReturn = null;
+    if (el && typeof el.focus === "function") {
+      try {
+        el.focus();
+      } catch {
+        /* ignore */
+      }
+    }
+  });
+}
+
+function isVaultTextLeafPath(p) {
   const lower = String(p || "").toLowerCase();
-  if (lower.endsWith(".excalidraw.json")) return true;
-  return lower.endsWith(".excalidraw");
+  return lower.endsWith(".md") || isMermaidVaultPath(p);
+}
+
+function getMermaidInlineSourceForWrap(host) {
+  if (!host || !host.classList.contains("vault-mermaid-wrap")) return null;
+  const key = host.dataset.vaultMermaidSrcKey;
+  let source = null;
+  if (key) {
+    try {
+      source = localStorage.getItem(`${VAULT_DIAG_SRC_PREFIX}${key}`);
+    } catch {
+      /* private mode / storage disabled */
+    }
+  }
+  if (source == null) source = vaultMermaidSrcByWrap.get(host);
+  if (
+    source == null &&
+    currentPath?.toLowerCase().endsWith(".md") &&
+    typeof currentSource === "string"
+  ) {
+    const idx = parseInt(host.dataset.vaultMermaidBlockIndex || "0", 10);
+    if (!Number.isNaN(idx)) source = extractMermaidBlockFromMarkdown(currentSource, idx);
+  }
+  return source;
 }
 
 function openVaultPath(p) {
   if (!p) return;
-  if (isExcalidrawVaultPath(p)) {
-    loadExcalidrawViewer(p);
+  if (getVaultDiagramKind(p)) {
+    void loadVaultDiagramLeaf(p);
     return;
   }
   if (p.toLowerCase().endsWith(".md")) loadNote(p);
+}
+
+async function loadVaultLeaf(p) {
+  if (!p) return;
+  if (getVaultDiagramKind(p)) await loadVaultDiagramLeaf(p);
+  else await loadNote(p);
 }
 
 function renderTree(nodes, depth = 0) {
@@ -356,11 +689,7 @@ function renderTree(nodes, depth = 0) {
       if (node.path === currentPath) a.classList.add("active");
       a.addEventListener("click", (e) => {
         e.preventDefault();
-        const kind =
-          node.kind ||
-          (isExcalidrawVaultPath(node.path) ? "excalidraw" : "md");
-        if (kind === "excalidraw") loadExcalidrawViewer(node.path);
-        else loadNote(node.path);
+        openVaultPath(node.path);
       });
       li.appendChild(a);
     } else {
@@ -394,7 +723,7 @@ function renderBreadcrumbs(relPath) {
     const segment = parts[i];
     if (isLast) {
       crumbs.push(`<span>${escapeAttr(segment)}</span>`);
-    } else if (acc.toLowerCase().endsWith(".md")) {
+    } else if (isVaultTextLeafPath(acc)) {
       crumbs.push(`<a href="#" data-crumb-path="${escapeAttr(acc)}">${escapeAttr(segment)}</a>`);
     } else {
       crumbs.push(`<span>${escapeAttr(segment)}</span>`);
@@ -405,7 +734,7 @@ function renderBreadcrumbs(relPath) {
     a.addEventListener("click", (e) => {
       e.preventDefault();
       const p = a.getAttribute("data-crumb-path");
-      if (p && p.toLowerCase().endsWith(".md")) loadNote(p);
+      if (p && isVaultTextLeafPath(p)) openVaultPath(p);
     });
   }
 }
@@ -426,7 +755,7 @@ function renderLinkList(el, paths, emptyLabel) {
     a.textContent = p;
     a.addEventListener("click", (e) => {
       e.preventDefault();
-      loadNote(p);
+      openVaultPath(p);
     });
     li.appendChild(a);
     el.appendChild(li);
@@ -450,7 +779,7 @@ function renderOutgoing(el, items) {
       a.textContent = item.pathPart;
       a.addEventListener("click", (e) => {
         e.preventDefault();
-        loadNote(item.resolved);
+        openVaultPath(item.resolved);
       });
       li.appendChild(a);
     } else {
@@ -463,36 +792,57 @@ function renderOutgoing(el, items) {
   }
 }
 
-async function loadExcalidrawViewer(relPath) {
-  if (!relPath || !isExcalidrawVaultPath(relPath)) return;
+async function loadVaultDiagramLeaf(relPath) {
+  const kind = getVaultDiagramKind(relPath);
+  if (!kind) return;
   if (isEditing && noteEditorEl.value !== currentSource) {
     if (!window.confirm("Discard unsaved changes?")) return;
   }
   exitEditModeSilent();
   currentPath = relPath;
-  currentSource = "";
   const baseName = relPath.includes("/") ? relPath.slice(relPath.lastIndexOf("/") + 1) : relPath;
-  noteTitleEl.textContent = baseName;
-  btnEditNote.disabled = true;
-  renderNoteTags([]);
-  if (badgeReadTime) badgeReadTime.textContent = "";
   updateStarButton();
   renderBreadcrumbs(relPath);
 
-  const safePath = escapeAttr(relPath);
-  noteBodyEl.innerHTML = sanitizeNoteHtml(
-    `<div class="vault-excalidraw vault-excalidraw-viewer" data-vault-excalidraw="${safePath}"></div>`
-  );
+  if (kind === "excalidraw") {
+    currentSource = "";
+    noteTitleEl.textContent = baseName;
+    btnEditNote.disabled = true;
+    renderNoteTags([]);
+    if (badgeReadTime) badgeReadTime.textContent = "";
+  } else {
+    noteTitleEl.textContent = baseName;
+    btnEditNote.disabled = false;
+    renderNoteTags([]);
+    if (badgeReadTime) badgeReadTime.textContent = "Mermaid";
+  }
 
-  promoteMermaidBlocks(noteBodyEl);
-  await runMermaidIn(noteBodyEl);
-  await hydrateExcalidrawEmbeds(noteBodyEl);
+  const result = await renderVaultDiagramFile(relPath, noteBodyEl);
+
+  if (kind === "mermaid") {
+    if (result.fetchFailed) {
+      currentSource = "";
+      noteTitleEl.textContent = "Error";
+      noteBodyEl.innerHTML = `<p>Could not load diagram (${result.status ?? "?"}).</p>`;
+      btnEditNote.disabled = true;
+      renderNoteTags([]);
+      if (badgeReadTime) badgeReadTime.textContent = "";
+    } else {
+      currentSource = result.source || "";
+      noteTitleEl.textContent = result.title || relPath;
+      btnEditNote.disabled = false;
+      renderNoteTags([]);
+      if (badgeReadTime) badgeReadTime.textContent = "Mermaid";
+    }
+  }
 
   renderLinkList(backlinkListEl, [], "No backlinks for diagram files");
   renderOutgoing(outgoingListEl, [], "No outgoing links");
 
   await refreshTree();
   history.replaceState(null, "", `${window.location.pathname}?path=${encodeURIComponent(relPath)}`);
+  applyViewMode();
+  finalizeDiagramUi();
 }
 
 async function loadNote(relPath) {
@@ -512,6 +862,7 @@ async function loadNote(relPath) {
     renderNoteTags([]);
     if (badgeReadTime) badgeReadTime.textContent = "";
     updateStarButton();
+    applyViewMode();
     return;
   }
   const data = await res.json();
@@ -523,7 +874,9 @@ async function loadNote(relPath) {
   updateStarButton();
   renderBreadcrumbs(relPath);
 
-  let html = marked.parse(data.previewMarkdown || "");
+  let md = data.previewMarkdown || "";
+  md = await preprocessMarkdownMermaidEmbeds(md, relPath);
+  let html = marked.parse(md);
   html = rewriteVaultMarkdownProtocols(html);
   html = rewriteRelativeMarkdownLinks(html, relPath);
   html = sanitizeNoteHtml(html);
@@ -542,17 +895,19 @@ async function loadNote(relPath) {
       const target = a.getAttribute("data-vault-path");
       if (target) {
         const [p] = target.split("#");
-        loadNote(p);
+        openVaultPath(p);
       }
     });
   });
 
   await refreshTree();
   history.replaceState(null, "", `${window.location.pathname}?path=${encodeURIComponent(relPath)}`);
+  applyViewMode();
+  finalizeDiagramUi();
 }
 
 function enterEditMode() {
-  if (!currentPath || !currentSource) {
+  if (!currentPath || typeof currentSource !== "string") {
     showFlash("Nothing to edit yet.", true);
     return;
   }
@@ -581,7 +936,7 @@ async function saveNote() {
       showFlash("Saved.");
     }
     exitEditModeSilent();
-    await loadNote(currentPath);
+    await loadVaultLeaf(currentPath);
   } catch (e) {
     showFlash(e.message || "Save failed", true);
   }
@@ -592,12 +947,20 @@ async function cancelEdit() {
     if (!window.confirm("Discard unsaved changes?")) return;
   }
   exitEditModeSilent();
-  await loadNote(currentPath);
+  await loadVaultLeaf(currentPath);
 }
 
 btnEditNote.addEventListener("click", () => enterEditMode());
 btnSaveNote.addEventListener("click", () => saveNote());
 btnCancelEdit.addEventListener("click", () => cancelEdit());
+
+btnToggleSourceView?.addEventListener("click", () => {
+  if (!canToggleRenderedSource() || isEditing) return;
+  preferSourceView = !preferSourceView;
+  localStorage.setItem(VIEW_PREF_KEY, preferSourceView ? "raw" : "rendered");
+  applyViewMode();
+  finalizeDiagramUi();
+});
 
 btnNewNote.addEventListener("click", () => {
   newNotePath.value = "";
@@ -703,23 +1066,9 @@ navSideFiles?.addEventListener("click", () => {
   setListView("recent");
 });
 
-navSideSearch?.addEventListener("click", () => {
-  setPanel("reader");
-  vaultSearchEl?.focus();
-});
-
-navSideStarred?.addEventListener("click", () => {
-  setPanel("reader");
-  setListView("starred");
-});
-
 navSideGraph?.addEventListener("click", () => {
   setPanel("graph");
   loadGraphPanel();
-});
-
-navSideSettings?.addEventListener("click", () => {
-  showFlash("Local vault — files stay on disk in /vault. No cloud settings.");
 });
 
 backFromGraphBtn?.addEventListener("click", () => {
@@ -770,7 +1119,9 @@ btnPublishStub?.addEventListener("click", () => {
 
 vaultHelpLink?.addEventListener("click", (e) => {
   e.preventDefault();
-  showFlash("Search: top bar. Edit: toolbar. Graph: sidebar. Escape closes dialogs.");
+  showFlash(
+    "Search: top bar. Edit: toolbar. Graph: sidebar. Hover diagrams for expand, zoom, or open in a new tab; Escape closes dialogs."
+  );
 });
 
 btnToggleInspector?.addEventListener("click", () => {
@@ -779,25 +1130,33 @@ btnToggleInspector?.addEventListener("click", () => {
   btnToggleInspector.setAttribute("aria-pressed", on ? "true" : "false");
 });
 
-function graphMermaidSource(graph) {
-  const { nodes = [], edges = [] } = graph || {};
-  const idByPath = new Map();
-  nodes.forEach((n, i) => {
-    idByPath.set(n.id, `N${i}`);
-  });
-  const lines = ["flowchart LR"];
-  for (const n of nodes) {
-    const id = idByPath.get(n.id);
-    const label = (n.title || n.id).replace(/"/g, "'");
-    lines.push(`  ${id}["${label}"]`);
+/**
+ * Re-run Mermaid inside the expand dialog from source so the diagram is complete
+ * (cloning nested SVGs / defs from the note body often breaks rendering).
+ */
+async function tryRenderMermaidInExpandDialog(host) {
+  let source = null;
+  if (host.classList.contains("vault-mermaid-wrap")) {
+    source = getMermaidInlineSourceForWrap(host);
+  } else if (host.classList.contains("mermaid") && !host.closest(".vault-mermaid-wrap")) {
+    if (isMermaidVaultPath(currentPath)) {
+      source = extractMermaidSourceFromFile(currentSource);
+    } else if (mermaidGraphHost && mermaidGraphHost.contains(host)) {
+      try {
+        const res = await fetch("/api/vault/graph");
+        const data = await res.json();
+        const graph = data.graph || { nodes: [], edges: [] };
+        if (graph.nodes?.length) source = graphMermaidSource(graph);
+      } catch {
+        return false;
+      }
+    }
   }
-  for (const e of edges) {
-    if (!e.ok) continue;
-    const a = idByPath.get(e.from);
-    const b = idByPath.get(e.to);
-    if (a && b) lines.push(`  ${a} --> ${b}`);
-  }
-  return lines.join("\n");
+  if (source == null || String(source).trim() === "") return false;
+
+  const text = String(source).trim();
+  const r = await renderMermaidSvgInto(diagramExpandScaled, text);
+  return r.ok;
 }
 
 async function loadGraphPanel() {
@@ -818,10 +1177,12 @@ async function loadGraphPanel() {
   pre.className = "mermaid";
   pre.textContent = src;
   mermaidGraphHost.appendChild(pre);
-  try {
-    await mermaid.run({ nodes: [pre] });
-  } catch (e) {
-    mermaidGraphHost.innerHTML = `<p class="vault-link-broken">Graph layout failed: ${escapeAttr(e.message || String(e))}</p><pre class="vault-graph-error-pre">${escapeAttr(src)}</pre>`;
+  const run = await runMermaidOnElements([pre]);
+  if (run.ok) {
+    decorateDiagramExpandControls(mermaidGraphHost);
+  } else {
+    const msg = run.error?.message || String(run.error);
+    mermaidGraphHost.innerHTML = `<p class="vault-link-broken">Graph layout failed: ${escapeAttr(msg)}</p><pre class="vault-graph-error-pre">${escapeAttr(src)}</pre>`;
   }
 
   if (broken.length) {
@@ -860,6 +1221,7 @@ function initVaultScrollChrome() {
 }
 
 async function boot() {
+  initDiagramExpandDialog();
   initVaultScrollChrome();
   setListView("recent");
   setEditUi(false);
@@ -871,7 +1233,7 @@ async function boot() {
   await refreshTree();
   if (pathParam) {
     if (pathParam.toLowerCase().endsWith(".md")) await loadNote(pathParam);
-    else if (isExcalidrawVaultPath(pathParam)) await loadExcalidrawViewer(pathParam);
+    else if (getVaultDiagramKind(pathParam)) await loadVaultDiagramLeaf(pathParam);
   } else {
     const res = await fetch("/api/vault/tree");
     const data = await res.json();

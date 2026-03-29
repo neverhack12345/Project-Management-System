@@ -1,4 +1,4 @@
-/* Second Brain — Obsidian Nocturne (example.html token map, vanilla CSS) */
+/* Second Brain vault shell (vanilla CSS) */
 
 :root {
   --vault-bg: #060e20;
@@ -190,6 +190,20 @@
   font-size: 18px;
 }
 
+a.vault-btn-new,
+a.vault-btn-new:visited {
+  color: #fff;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+a.vault-btn-new:focus-visible {
+  outline: 2px solid var(--vault-accent-cyan);
+  outline-offset: 2px;
+}
+.vault-btn-new--footer {
+  margin-bottom: 10px;
+}
+
 .vault-side-nav {
   display: flex;
   flex-direction: column;
@@ -305,8 +319,7 @@
 }
 
 .vault-tree-host.hidden,
-.vault-starred-host.hidden,
-.vault-shared-placeholder.hidden {
+.vault-starred-host.hidden {
   display: none !important;
 }
 
@@ -374,13 +387,6 @@
 .vault-starred-list a:hover {
   background: var(--vault-blue-dim);
   color: var(--vault-primary);
-}
-
-.vault-shared-placeholder {
-  padding: 12px;
-  font-size: 13px;
-  color: var(--vault-muted);
-  line-height: 1.5;
 }
 
 .vault-sidebar-footer {
@@ -475,27 +481,12 @@
   box-shadow: 0 1px 0 rgba(43, 70, 128, 0.15);
 }
 
-.vault-main-top-divider {
-  width: 1px;
-  height: 16px;
-  background: rgba(43, 70, 128, 0.35);
-  flex-shrink: 0;
-}
-
 .vault-main-top-left {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 12px 20px;
 }
-.vault-app-crumb {
-  font-family: var(--vault-font-headline);
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--vault-text);
-  letter-spacing: -0.02em;
-}
-
 .vault-view-tabs {
   display: flex;
   gap: 4px;
@@ -824,6 +815,33 @@
   box-shadow: 0 0 20px rgba(34, 211, 238, 0.35);
 }
 
+.vault-chip-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.vault-raw-view {
+  display: block;
+  width: 100%;
+  max-width: 820px;
+  min-height: min(55vh, 480px);
+  margin: 0 0 24px;
+  padding: 16px 18px;
+  font-family: var(--vault-font-mono);
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--vault-text);
+  background: var(--vault-container-low);
+  border: 1px solid rgba(43, 70, 128, 0.25);
+  border-radius: 12px;
+  overflow: auto;
+}
+.vault-raw-view.hidden {
+  display: none !important;
+}
+
 .vault-editor {
   display: block;
   width: 100%;
@@ -923,6 +941,20 @@
   border-radius: 12px;
   padding: 14px;
   border: 1px solid var(--vault-border);
+}
+.vault-prose .vault-mermaid-wrap {
+  margin: 1.25em 0;
+  background: var(--vault-surface);
+  border-radius: 12px;
+  padding: 14px;
+  border: 1px solid var(--vault-border);
+}
+.vault-prose .vault-mermaid-wrap .mermaid {
+  margin: 0;
+  background: transparent;
+  border: none;
+  padding: 0;
+  border-radius: 0;
 }
 .vault-prose mark,
 .vault-prose .highlight {
@@ -1200,6 +1232,209 @@
 .notes-tab-btn:hover {
   border-color: rgba(206, 189, 255, 0.4);
   color: var(--vault-primary);
+}
+
+/* Diagram expand lightbox */
+.vault-diagram-expand-dialog {
+  margin: auto;
+  padding: 0;
+  max-width: none;
+  width: min(96vw, 1400px);
+  height: min(92vh, 900px);
+  max-height: 92vh;
+  border: 1px solid var(--vault-border);
+  border-radius: 14px;
+  background: var(--vault-elevated);
+  color: var(--vault-text);
+  flex-direction: column;
+  overflow: hidden;
+}
+.vault-diagram-expand-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(6px);
+}
+.vault-diagram-expand-dialog[open] {
+  display: flex;
+}
+.vault-diagram-expand-dialog-inner {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+.vault-diagram-expand-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--vault-border);
+  flex-shrink: 0;
+  background: var(--vault-surface);
+  flex-wrap: wrap;
+}
+.vault-diagram-expand-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.vault-diagram-expand-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--vault-border);
+  background: var(--vault-container-low, rgba(0, 0, 0, 0.2));
+}
+.vault-diagram-expand-zoom-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vault-muted);
+  min-width: 3.25em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.vault-diagram-expand-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--vault-muted);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.vault-diagram-expand-tool-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--vault-text);
+}
+.vault-diagram-expand-tool-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.vault-diagram-expand-tool-btn .vault-ms {
+  font-size: 22px;
+}
+.vault-diagram-expand-open-tab {
+  border: 1px solid var(--vault-border);
+  background: var(--vault-container-low, rgba(0, 0, 0, 0.2));
+}
+.vault-diagram-expand-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vault-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.vault-diagram-expand-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--vault-muted);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.vault-diagram-expand-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--vault-text);
+}
+.vault-diagram-expand-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 20px 24px 28px;
+  background: var(--vault-container-low, var(--vault-surface));
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+.vault-diagram-expand-scaled {
+  transform-origin: top left;
+  transition: transform 0.12s ease;
+  /* Flex row parent + SVG width="100%" yields 0×0 min size; min-content uses viewBox intrinsic size */
+  min-width: min-content;
+  min-height: min-content;
+  flex-shrink: 0;
+}
+.vault-diagram-expand-scaled svg {
+  display: block;
+  max-width: none;
+  /* Override Mermaid inline width="100%" — inside zero-width flex item that becomes 0×0 */
+  width: auto !important;
+  height: auto !important;
+}
+.vault-diagram-expand-scaled svg + svg {
+  margin-top: 1rem;
+}
+.vault-diagram-expand-scaled .mermaid {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+.vault-diagram-expand-host {
+  position: relative;
+}
+.vault-diagram-expand-host .vault-diagram-expand-btn {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.vault-diagram-expand-host:hover .vault-diagram-expand-btn,
+.vault-diagram-expand-host:focus-within .vault-diagram-expand-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+.vault-diagram-expand-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--vault-border);
+  border-radius: 10px;
+  background: var(--vault-glass-frost, rgba(15, 23, 42, 0.85));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--vault-muted);
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+.vault-diagram-expand-btn:hover {
+  color: var(--vault-text);
+  border-color: rgba(206, 189, 255, 0.35);
+}
+.vault-diagram-expand-btn .vault-ms {
+  font-size: 20px;
+}
+.mermaid-graph-host .vault-diagram-expand-host .vault-diagram-expand-btn {
+  top: 14px;
+  right: 14px;
+}
+
+@media (hover: none) {
+  .vault-diagram-expand-host .vault-diagram-expand-btn {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 @media (max-width: 720px) {
