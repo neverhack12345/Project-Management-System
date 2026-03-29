@@ -196,7 +196,17 @@ export function postProjectFact(slug, body) {
 }
 
 export function patchProjectFact(slug, factId, body) {
-  return fetch(`/api/projects/${slug}/facts/${factId}`, {
+  const encSlug = encodeURIComponent(slug);
+  const encFact = encodeURIComponent(factId);
+  return fetch(`/api/projects/${encSlug}/facts/${encFact}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+}
+
+export function patchTaskFactRefs(slug, taskId, body) {
+  return fetch(`/api/projects/${slug}/tasks/${taskId}/facts`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)

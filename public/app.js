@@ -68,6 +68,15 @@ const newTaskDependsOn = document.getElementById("newTaskDependsOn");
 const newTaskFactRefs = document.getElementById("newTaskFactRefs");
 const createTaskBtn = document.getElementById("createTaskBtn");
 const openTaskModalBtn = document.getElementById("openTaskModalBtn");
+const factCreateModal = document.getElementById("factCreateModal");
+const newFactSlug = document.getElementById("newFactSlug");
+const newFactStatement = document.getElementById("newFactStatement");
+const newFactStatus = document.getElementById("newFactStatus");
+const newFactSource = document.getElementById("newFactSource");
+const newFactNote = document.getElementById("newFactNote");
+const createFactBtn = document.getElementById("createFactBtn");
+const closeFactModalBtn = document.getElementById("closeFactModalBtn");
+const cancelFactModalBtn = document.getElementById("cancelFactModalBtn");
 const taskCreateModal = document.getElementById("taskCreateModal");
 const closeTaskModalBtn = document.getElementById("closeTaskModalBtn");
 const cancelTaskModalBtn = document.getElementById("cancelTaskModalBtn");
@@ -102,6 +111,16 @@ const commandPalette = document.getElementById("commandPalette");
 const paletteInput = document.getElementById("paletteInput");
 const paletteList = document.getElementById("paletteList");
 const closePaletteBtn = document.getElementById("closePaletteBtn");
+const taskDetailModal = document.getElementById("taskDetailModal");
+const taskDetailModalBody = document.getElementById("taskDetailModalBody");
+const taskDetailModalTitle = document.getElementById("taskDetailModalTitle");
+const closeTaskDetailModalBtn = document.getElementById("closeTaskDetailModalBtn");
+const closeTaskDetailFooterBtn = document.getElementById("closeTaskDetailFooterBtn");
+const factsWorkspaceSlug = document.getElementById("factsWorkspaceSlug");
+const factsWorkspaceList = document.getElementById("factsWorkspaceList");
+const taskDetailFactsSection = document.getElementById("taskDetailFactsSection");
+const taskDetailFactRefsSelect = document.getElementById("taskDetailFactRefsSelect");
+const taskDetailSaveFactsBtn = document.getElementById("taskDetailSaveFactsBtn");
 
 const SAVED_VIEWS_KEY = "project_dashboard_saved_views";
 const DIGEST_PREFS_KEY = "project_dashboard_digest_prefs";
@@ -110,6 +129,8 @@ const selectedProjects = new Set();
 let currentTimelineEvents = [];
 const taskOptionsByProject = new Map();
 const factOptionsByProject = new Map();
+/** Kanban card payload while task detail modal is open (for saving fact links). */
+let taskDetailBoardTask = null;
 
 function isIsoDateClient(value) {
   const s = String(value || "").trim();
@@ -155,6 +176,14 @@ function setTaskModalCreatedDates() {
   if (taskModalCreatedDate) taskModalCreatedDate.value = iso;
 }
 
+function syncTaskOverlayBodyClass() {
+  const anyOpen =
+    (taskCreateModal && !taskCreateModal.hidden) ||
+    (taskDetailModal && !taskDetailModal.hidden) ||
+    (factCreateModal && !factCreateModal.hidden);
+  document.body.classList.toggle("task-modal-open", Boolean(anyOpen));
+}
+
 function openTaskCreateModal() {
   if (!taskCreateModal) return;
   setTaskModalCreatedDates();
@@ -162,7 +191,7 @@ function openTaskCreateModal() {
   updateTaskRecurPreview();
   taskCreateModal.hidden = false;
   taskCreateModal.setAttribute("aria-hidden", "false");
-  document.body.classList.add("task-modal-open");
+  syncTaskOverlayBodyClass();
   newTaskTitle?.focus();
 }
 
@@ -170,7 +199,139 @@ function closeTaskCreateModal() {
   if (!taskCreateModal) return;
   taskCreateModal.hidden = true;
   taskCreateModal.setAttribute("aria-hidden", "true");
-  document.body.classList.remove("task-modal-open");
+  syncTaskOverlayBodyClass();
+}
+
+function clearCreateFactForm() {
+  if (newFactStatement) newFactStatement.value = "";
+  if (newFactSource) newFactSource.value = "";
+  if (newFactNote) newFactNote.value = "";
+  if (newFactStatus) newFactStatus.value = "unknown";
+}
+
+function closeFactCreateModal() {
+  if (!factCreateModal) return;
+  factCreateModal.hidden = true;
+  factCreateModal.setAttribute("hidden", "");
+  factCreateModal.setAttribute("aria-hidden", "true");
+  syncTaskOverlayBodyClass();
+}
+
+/** @param {string} [explicitPreferred] - project slug to preselect */
+function openFactCreateModal(explicitPreferred) {
+  if (!factCreateModal) return;
+  clearCreateFactForm();
+  let preferred = (explicitPreferred && String(explicitPreferred).trim()) || "";
+  if (!preferred) {
+    preferred =
+      newTaskSlug?.value?.trim() ||
+      factsWorkspaceSlug?.value?.trim() ||
+      "";
+  }
+  if (newFactSlug) {
+    const match = preferred && [...newFactSlug.options].some((o) => o.value === preferred);
+    const pick = match ? preferred : [...newFactSlug.options].find((o) => o.value)?.value || "";
+    if (pick) newFactSlug.value = pick;
+  }
+  factCreateModal.removeAttribute("hidden");
+  factCreateModal.hidden = false;
+  factCreateModal.setAttribute("aria-hidden", "false");
+  syncTaskOverlayBodyClass();
+  requestAnimationFrame(() => newFactStatement?.focus());
+}
+
+async function submitCreateFact() {
+  const slug = newFactSlug?.value;
+  if (!slug) {
+    statusFlash.show("Select a project.", { error: true });
+    return;
+  }
+  const statement = newFactStatement?.value.trim() || "";
+  if (!statement) {
+    statusFlash.show("Enter a fact statement.", { error: true });
+    return;
+  }
+  const status = newFactStatus?.value || "unknown";
+  const source = newFactSource?.value.trim() || "";
+  const verificationNote = newFactNote?.value.trim() || "";
+  if (status === "verified" && (!source || !verificationNote)) {
+    statusFlash.show("Verified facts require source and verification note.", { error: true });
+    return;
+  }
+  try {
+    await createProjectFact(slug, {
+      statement,
+      status,
+      sources: source ? [source] : [],
+      verificationNote
+    });
+    clearCreateFactForm();
+    closeFactCreateModal();
+    factOptionsByProject.delete(slug);
+    await refresh();
+    statusFlash.show(`Created fact in ${slug}`);
+  } catch (error) {
+    statusFlash.show(error.message, { error: true });
+  }
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function openTaskDetailModal(boardTask) {
+  if (!taskDetailModal || !taskDetailModalBody) return;
+  const project = currentProjects.find((p) => p.slug === boardTask.projectSlug);
+  const full = project?.tasks?.find((t) => t.id === boardTask.id);
+  const titleText = full?.title || boardTask.title || "Task";
+  if (taskDetailModalTitle) taskDetailModalTitle.textContent = titleText;
+
+  const deps = (full?.dependsOn || boardTask.dependsOn || []).join(", ") || "—";
+  const facts = (full?.factRefs || []).join(", ") || "—";
+  const unresolved = (full?.unresolvedFactRefs || boardTask.unresolvedFactRefs || []).join(", ") || "—";
+  const lane = full?.state || boardTask.state || "—";
+  const done = full?.done ? "Yes" : "No";
+  const due = full?.dueDate || boardTask.dueDate || "—";
+  const projectName = project?.name || boardTask.projectName || boardTask.projectSlug;
+  const refText = full?.ref || boardTask.ref || `${boardTask.projectSlug}:${boardTask.id}`;
+
+  taskDetailModalBody.innerHTML = `
+    <dl class="task-detail-dl">
+      <dt>Project</dt><dd>${escapeHtml(projectName)} <span class="task-detail-muted">(${escapeHtml(boardTask.projectSlug)})</span></dd>
+      <dt>Task ID</dt><dd><code>${escapeHtml(boardTask.id)}</code></dd>
+      <dt>Reference</dt><dd><code>${escapeHtml(refText)}</code></dd>
+      <dt>Lane</dt><dd>${escapeHtml(lane)}</dd>
+      <dt>Done</dt><dd>${escapeHtml(done)}</dd>
+      <dt>Due date</dt><dd>${escapeHtml(due)}</dd>
+      <dt>Dependencies</dt><dd>${escapeHtml(deps)}</dd>
+      <dt>Fact refs</dt><dd>${escapeHtml(facts)}</dd>
+      <dt>Unresolved facts</dt><dd>${escapeHtml(unresolved)}</dd>
+    </dl>
+    <p class="helper-text">Drag a card to another column to change its lane. Edit fact links below, or use the Facts tab for the full registry. Refresh after editing task markdown on disk.</p>
+  `;
+  taskDetailBoardTask = boardTask;
+  if (taskDetailFactsSection && project) {
+    taskDetailFactsSection.hidden = false;
+    populateTaskDetailFactSelect(project, full);
+  } else if (taskDetailFactsSection) {
+    taskDetailFactsSection.hidden = true;
+  }
+  taskDetailModal.hidden = false;
+  taskDetailModal.setAttribute("aria-hidden", "false");
+  syncTaskOverlayBodyClass();
+}
+
+function closeTaskDetailModal() {
+  if (!taskDetailModal) return;
+  taskDetailBoardTask = null;
+  if (taskDetailFactsSection) taskDetailFactsSection.hidden = true;
+  taskDetailModal.hidden = true;
+  taskDetailModal.setAttribute("aria-hidden", "true");
+  syncTaskOverlayBodyClass();
 }
 
 function selectedTaskCreatePriority() {
@@ -238,6 +399,231 @@ async function updateProjectFact(slug, factId, payload) {
   return handleWriteResponse(res);
 }
 
+async function saveTaskFactRefs(slug, taskId, factIds) {
+  const project = currentProjects.find((item) => item.slug === slug);
+  const res = await projectApi.patchTaskFactRefs(slug, taskId, {
+    factRefs: factIds,
+    versionToken: project?.versionToken || ""
+  });
+  return handleWriteResponse(res);
+}
+
+function collectUsedFactRefs(project) {
+  const used = new Set();
+  for (const task of project.tasks || []) {
+    for (const ref of task.factRefs || []) used.add(ref);
+  }
+  return used;
+}
+
+function populateTaskDetailFactSelect(project, full) {
+  if (!taskDetailFactRefsSelect || !project) return;
+  const slug = project.slug;
+  taskDetailFactRefsSelect.innerHTML = "";
+  const selectedRefs = new Set(full?.factRefs || []);
+  for (const fact of project.facts || []) {
+    const opt = document.createElement("option");
+    opt.value = fact.factId;
+    const snippet = fact.statement.length > 72 ? `${fact.statement.slice(0, 72)}…` : fact.statement;
+    opt.textContent = `${fact.factId} · [${fact.status}] ${snippet}`;
+    opt.selected = selectedRefs.has(fact.ref) || selectedRefs.has(fact.factId);
+    taskDetailFactRefsSelect.appendChild(opt);
+  }
+}
+
+function renderFactsWorkspace() {
+  if (!factsWorkspaceList || !factsWorkspaceSlug) return;
+  const slug = factsWorkspaceSlug.value;
+  const project = currentProjects.find((p) => p.slug === slug);
+  factsWorkspaceList.innerHTML = "";
+  if (!project) {
+    factsWorkspaceList.innerHTML = "<p class=\"helper-text\">Load projects to manage facts.</p>";
+    return;
+  }
+  const usedRefs = collectUsedFactRefs(project);
+  const filterEl = document.querySelector(".factsFilterBtn.active");
+  const filter = filterEl?.dataset.factsFilter || "all";
+  const facts = project.facts || [];
+  const filtered = filter === "unassigned" ? facts.filter((f) => !usedRefs.has(f.ref)) : [...facts];
+  if (!filtered.length) {
+    factsWorkspaceList.innerHTML = "<p class=\"helper-text\">No facts match this filter.</p>";
+    return;
+  }
+  for (const fact of filtered) {
+    const linked = (project.tasks || []).filter((t) => (t.factRefs || []).includes(fact.ref));
+    const card = document.createElement("article");
+    card.className = "dash-fact-card";
+    const head = document.createElement("div");
+    head.className = "dash-fact-card-head";
+    const idCode = document.createElement("code");
+    idCode.textContent = fact.factId;
+    const badge = document.createElement("span");
+    badge.className = usedRefs.has(fact.ref) ? "dash-fact-badge dash-fact-badge--linked" : "dash-fact-badge dash-fact-badge--free";
+    badge.textContent = usedRefs.has(fact.ref) ? `${linked.length} task(s)` : "Unassigned";
+    head.appendChild(idCode);
+    head.appendChild(badge);
+    card.appendChild(head);
+    const st = document.createElement("p");
+    st.className = "dash-fact-statement";
+    st.textContent = fact.statement || "(no statement)";
+    card.appendChild(st);
+    const meta = document.createElement("p");
+    meta.className = "helper-text dash-fact-meta";
+    meta.textContent = `Status: ${fact.status || "unknown"}`;
+    card.appendChild(meta);
+    if (linked.length) {
+      const ul = document.createElement("ul");
+      ul.className = "dash-fact-linked-tasks";
+      for (const t of linked) {
+        const li = document.createElement("li");
+        li.textContent = `${t.id} — ${t.title}`;
+        ul.appendChild(li);
+      }
+      card.appendChild(ul);
+    }
+    const assignRow = document.createElement("div");
+    assignRow.className = "dash-fact-assign-row row";
+    const assignLabel = document.createElement("span");
+    assignLabel.className = "task-modal-label";
+    assignLabel.textContent = "Assign to task";
+    const assignSelect = document.createElement("select");
+    assignSelect.className = "task-modal-input";
+    const assignPlaceholder = document.createElement("option");
+    assignPlaceholder.value = "";
+    assignPlaceholder.textContent = "Select task…";
+    assignSelect.appendChild(assignPlaceholder);
+    for (const t of project.tasks || []) {
+      const o = document.createElement("option");
+      o.value = t.id;
+      o.textContent = `${t.id} — ${t.title}`;
+      assignSelect.appendChild(o);
+    }
+    const assignBtn = document.createElement("button");
+    assignBtn.type = "button";
+    assignBtn.className = "vault-btn-new vault-btn-new--inline vault-btn-new--secondary";
+    assignBtn.textContent = "Assign";
+    assignBtn.addEventListener("click", async () => {
+      const taskId = assignSelect.value;
+      if (!taskId) {
+        statusFlash.show("Select a task to assign this fact.", { error: true });
+        return;
+      }
+      const task = (project.tasks || []).find((x) => x.id === taskId);
+      if (!task) return;
+      const ids = [
+        ...new Set(
+          [...(task.factRefs || [])].map((r) => (r.includes(":") ? r.split(":").pop() : r)).concat(fact.factId)
+        )
+      ];
+      try {
+        await saveTaskFactRefs(slug, taskId, ids);
+        factOptionsByProject.delete(slug);
+        await refresh();
+        statusFlash.show(`Linked ${fact.factId} to task ${taskId}`);
+      } catch (error) {
+        statusFlash.show(error.message, { error: true });
+      }
+    });
+    assignRow.appendChild(assignLabel);
+    assignRow.appendChild(assignSelect);
+    assignRow.appendChild(assignBtn);
+    card.appendChild(assignRow);
+    const details = document.createElement("details");
+    details.className = "dash-fact-edit";
+    const summary = document.createElement("summary");
+    summary.textContent = "Edit statement, status, sources, verification";
+    details.appendChild(summary);
+    const editGrid = document.createElement("div");
+    editGrid.className = "form-grid dash-fact-edit-grid";
+    const stmtLabel = document.createElement("label");
+    stmtLabel.className = "field field-full";
+    stmtLabel.innerHTML = "<span>Statement</span>";
+    const stmtTa = document.createElement("textarea");
+    stmtTa.rows = 2;
+    stmtTa.className = "task-modal-textarea";
+    stmtTa.value = fact.statement || "";
+    stmtLabel.appendChild(stmtTa);
+    const statusLabel = document.createElement("label");
+    statusLabel.className = "field";
+    statusLabel.innerHTML = "<span>Status</span>";
+    const statusSel = document.createElement("select");
+    statusSel.className = "task-modal-input";
+    for (const value of ["unknown", "unverified", "in-review", "verified"]) {
+      const opt = document.createElement("option");
+      opt.value = value;
+      opt.textContent = value;
+      statusSel.appendChild(opt);
+    }
+    statusSel.value = fact.status || "unknown";
+    statusLabel.appendChild(statusSel);
+    const srcLabel = document.createElement("label");
+    srcLabel.className = "field field-full";
+    srcLabel.innerHTML = "<span>Sources (comma-separated)</span>";
+    const srcInput = document.createElement("input");
+    srcInput.type = "text";
+    srcInput.className = "task-modal-input";
+    srcInput.value = (fact.sources || []).join(", ");
+    srcLabel.appendChild(srcInput);
+    const noteLabel = document.createElement("label");
+    noteLabel.className = "field field-full";
+    noteLabel.innerHTML = "<span>Verification note</span>";
+    const noteInput = document.createElement("input");
+    noteInput.type = "text";
+    noteInput.className = "task-modal-input";
+    noteInput.value = fact.verificationNote || "";
+    noteLabel.appendChild(noteInput);
+    const saveDetails = document.createElement("button");
+    saveDetails.type = "button";
+    saveDetails.className = "vault-btn-new vault-btn-new--inline";
+    saveDetails.textContent = "Save fact";
+    saveDetails.addEventListener("click", async () => {
+      const statement = stmtTa.value.trim();
+      const status = statusSel.value;
+      const sources = srcInput.value
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const verificationNote = noteInput.value.trim();
+      if (status === "verified" && (!sources.length || !verificationNote)) {
+        statusFlash.show("Verified facts require at least one source and a verification note.", { error: true });
+        return;
+      }
+      const projectRow = currentProjects.find((p) => p.slug === slug);
+      if (!projectRow?.versionToken) {
+        statusFlash.show("Project data is stale — click Refresh in the header, then try again.", { error: true });
+        return;
+      }
+      const prevLabel = saveDetails.textContent;
+      saveDetails.disabled = true;
+      saveDetails.textContent = "Saving…";
+      try {
+        await updateProjectFact(slug, fact.factId, {
+          statement,
+          status,
+          sources,
+          verificationNote
+        });
+        factOptionsByProject.delete(slug);
+        statusFlash.show(`Updated fact ${fact.factId}`);
+        await refresh();
+      } catch (error) {
+        statusFlash.show(error?.message || String(error), { error: true });
+      } finally {
+        saveDetails.disabled = false;
+        saveDetails.textContent = prevLabel;
+      }
+    });
+    editGrid.appendChild(stmtLabel);
+    editGrid.appendChild(statusLabel);
+    editGrid.appendChild(srcLabel);
+    editGrid.appendChild(noteLabel);
+    details.appendChild(editGrid);
+    details.appendChild(saveDetails);
+    card.appendChild(details);
+    factsWorkspaceList.appendChild(card);
+  }
+}
+
 async function handleWriteResponse(res) {
   const data = await res.json();
   if (res.status === 409) {
@@ -249,8 +635,6 @@ async function handleWriteResponse(res) {
   }
   if (data.commit?.warning) {
     statusFlash.show(data.commit.warning, { clearAfterMs: null });
-  } else {
-    statusFlash.show("");
   }
   return data;
 }
@@ -298,8 +682,14 @@ function populateProjectTaskOptions(slug, depsSelect, factsSelect) {
 function populateNewTaskProjectOptions(projects) {
   const options = (projects || []).map((project) => project.slug);
   setSelectOptions(newTaskSlug, options, "Select project");
+  setSelectOptions(newFactSlug, options, "Select project");
   setSelectOptions(intakeSlug, options, "Select project");
+  if (factsWorkspaceSlug) {
+    setSelectOptions(factsWorkspaceSlug, options, "Select project");
+    if (!factsWorkspaceSlug.value && options.length) factsWorkspaceSlug.value = options[0];
+  }
   if (!newTaskSlug.value && options.length) newTaskSlug.value = options[0];
+  if (newFactSlug && !newFactSlug.value && options.length) newFactSlug.value = options[0];
   if (!intakeSlug.value && options.length) intakeSlug.value = options[0];
   const slug = newTaskSlug.value;
   populateProjectTaskOptions(slug, newTaskDependsOn, newTaskFactRefs);
@@ -314,6 +704,7 @@ function populateNewTaskProjectOptions(projects) {
       })
       .catch(() => {});
   }
+  renderFactsWorkspace();
 }
 
 function clearCreateProjectForm() {
@@ -440,38 +831,6 @@ function renderProjects(projects) {
         await refresh();
       } catch {}
     });
-    const taskInput = node.querySelector(".taskInput");
-    const taskDueDate = node.querySelector(".taskDueDate");
-    const taskDeps = node.querySelector(".taskDeps");
-    const taskFacts = node.querySelector(".taskFacts");
-    const taskRecur = node.querySelector(".taskRecur");
-    populateProjectTaskOptions(project.slug, taskDeps, taskFacts);
-    taskDueDate.value = new Date().toISOString().slice(0, 10);
-    node.querySelector(".addTask").addEventListener("click", async () => {
-      if (!taskInput.value.trim()) return;
-      if (!taskDueDate.value) {
-        statusFlash.show("Task deadline is required.", { error: true });
-        return;
-      }
-      const dependsOn = getSelectedValues(taskDeps).map((value) => value.split(" - ")[0]);
-      const factRefs = getSelectedValues(taskFacts);
-      try {
-        const result = await addTask(
-          project.slug,
-          taskInput.value.trim(),
-          taskDueDate.value,
-          taskRecur.value,
-          dependsOn,
-          factRefs
-        );
-        if (result?.taskId) statusFlash.show(`Task created: ${result.taskId}`);
-        taskInput.value = "";
-        taskDueDate.value = new Date().toISOString().slice(0, 10);
-        for (const option of taskDeps.options) option.selected = false;
-        for (const option of taskFacts.options) option.selected = false;
-        await refresh();
-      } catch {}
-    });
     const blockedReasonInput = node.querySelector(".blockedReasonInput");
     blockedReasonInput.value = project.blockedReason || "";
     node.querySelector(".saveMeta").addEventListener("click", async () => {
@@ -480,10 +839,6 @@ function renderProjects(projects) {
         await refresh();
       } catch {}
     });
-    const factStatementInput = node.querySelector(".factStatementInput");
-    const factStatusSelect = node.querySelector(".factStatusSelect");
-    const factSourceInput = node.querySelector(".factSourceInput");
-    const factNoteInput = node.querySelector(".factNoteInput");
     const factList = node.querySelector(".factList");
     async function loadFacts() {
       factList.innerHTML = "";
@@ -493,7 +848,7 @@ function renderProjects(projects) {
           factList.innerHTML = "<li>No facts yet.</li>";
           return;
         }
-        for (const fact of facts.slice(0, 8)) {
+        for (const fact of facts) {
           const li = document.createElement("li");
           li.textContent = `${fact.factId} [${fact.status}] ${fact.statement}`;
           const status = document.createElement("select");
@@ -524,36 +879,13 @@ function renderProjects(projects) {
           project.slug,
           facts.map((fact) => fact.factId)
         );
-        populateProjectTaskOptions(project.slug, taskDeps, taskFacts);
+        if (newTaskSlug?.value === project.slug) {
+          populateProjectTaskOptions(project.slug, newTaskDependsOn, newTaskFactRefs);
+        }
       } catch (error) {
         factList.innerHTML = `<li>${error.message}</li>`;
       }
     }
-    node.querySelector(".addFact").addEventListener("click", async () => {
-      const statement = factStatementInput.value.trim();
-      if (!statement) return;
-      const status = factStatusSelect.value;
-      const source = factSourceInput.value.trim();
-      const verificationNote = factNoteInput.value.trim();
-      if (status === "verified" && (!source || !verificationNote)) {
-        statusFlash.show("Verified facts require source and verification note.", { error: true });
-        return;
-      }
-      try {
-        await createProjectFact(project.slug, {
-          statement,
-          status,
-          sources: source ? [source] : [],
-          verificationNote
-        });
-        factStatementInput.value = "";
-        factSourceInput.value = "";
-        factNoteInput.value = "";
-        await refresh();
-      } catch (error) {
-        statusFlash.show(error.message, { error: true });
-      }
-    });
     loadFacts().catch(() => {});
 
     const selectBox = node.querySelector(".selectProject");
@@ -630,11 +962,25 @@ function renderKanban(data) {
       });
       const deps = (task.dependsOn || []).slice(0, 2).join(", ");
       const unresolved = (task.unresolvedFactRefs || []).length;
+      card.title = "Click for details · drag to move lane";
+      let kanbanPointerDown = null;
+      card.addEventListener("pointerdown", (e) => {
+        kanbanPointerDown = { x: e.clientX, y: e.clientY };
+      });
+      card.addEventListener("click", (e) => {
+        if (!kanbanPointerDown) return;
+        const dist = Math.hypot(e.clientX - kanbanPointerDown.x, e.clientY - kanbanPointerDown.y);
+        kanbanPointerDown = null;
+        if (dist > 14) return;
+        openTaskDetailModal(task);
+      });
+      const projectLabel = task.projectName || task.projectSlug;
       card.innerHTML = `
-        <div class="kanban-title">${task.title}</div>
-        <div class="kanban-meta">${task.projectSlug}:${task.id}</div>
-        <div class="kanban-meta">due: ${task.dueDate || "n/a"}</div>
-        <div class="kanban-meta">${deps ? `deps: ${deps}` : "deps: none"}</div>
+        <div class="kanban-project" title="Project">${escapeHtml(projectLabel)}<span class="kanban-project-slug">${escapeHtml(task.projectSlug)}</span></div>
+        <div class="kanban-title">${escapeHtml(task.title)}</div>
+        <div class="kanban-meta"><code>${escapeHtml(task.id)}</code></div>
+        <div class="kanban-meta">due: ${escapeHtml(task.dueDate || "n/a")}</div>
+        <div class="kanban-meta">${deps ? `deps: ${escapeHtml(deps)}` : "deps: none"}</div>
         <div class="kanban-meta ${unresolved ? "warn" : ""}">unresolved facts: ${unresolved}</div>
       `;
       laneEl.appendChild(card);
@@ -1114,6 +1460,7 @@ async function refresh() {
   renderTimeEntries(timeEntriesRes);
   renderIntakeForms(intakeFormsRes);
   renderAutomationRuns(automationRunsRes);
+  renderFactsWorkspace();
 }
 
 function readSavedViews() {
@@ -1248,6 +1595,14 @@ document.addEventListener("keydown", (event) => {
     openPalette();
   }
   if (event.key === "Escape") {
+    if (taskDetailModal && !taskDetailModal.hidden) {
+      closeTaskDetailModal();
+      return;
+    }
+    if (factCreateModal && !factCreateModal.hidden) {
+      closeFactCreateModal();
+      return;
+    }
     if (taskCreateModal && !taskCreateModal.hidden) {
       closeTaskCreateModal();
       return;
@@ -1337,7 +1692,7 @@ createProjectBtn.addEventListener("click", async () => {
     statusFlash.show(error.message, { error: true });
   }
 });
-createTaskBtn.addEventListener("click", async () => {
+createTaskBtn?.addEventListener("click", async () => {
   const slug = newTaskSlug.value.trim();
   const task = newTaskTitle.value.trim();
   syncDueFromTextField();
@@ -1414,7 +1769,7 @@ createTaskBtn.addEventListener("click", async () => {
     statusFlash.show(error.message, { error: true });
   }
 });
-newTaskSlug.addEventListener("change", () => {
+newTaskSlug?.addEventListener("change", () => {
   const slug = newTaskSlug.value;
   populateProjectTaskOptions(slug, newTaskDependsOn, newTaskFactRefs);
   if (!factOptionsByProject.has(slug)) {
@@ -1430,6 +1785,18 @@ newTaskSlug.addEventListener("change", () => {
   }
 });
 
+document.body.addEventListener("click", (e) => {
+  const opener = e.target.closest?.("[data-open-fact-modal]");
+  if (!opener) return;
+  e.preventDefault();
+  const which = opener.getAttribute("data-open-fact-modal");
+  if (which === "facts") {
+    openFactCreateModal(factsWorkspaceSlug?.value?.trim());
+  } else if (which === "projects") {
+    openFactCreateModal(newTaskSlug?.value?.trim());
+  }
+});
+
 if (openTaskModalBtn && taskCreateModal) {
   openTaskModalBtn.addEventListener("click", () => openTaskCreateModal());
 }
@@ -1440,6 +1807,21 @@ if (taskCreateModal) {
     if (e.target === taskCreateModal) closeTaskCreateModal();
   });
 }
+if (factCreateModal) {
+  factCreateModal.addEventListener("click", (e) => {
+    if (e.target === factCreateModal) closeFactCreateModal();
+  });
+}
+closeFactModalBtn?.addEventListener("click", () => closeFactCreateModal());
+cancelFactModalBtn?.addEventListener("click", () => closeFactCreateModal());
+createFactBtn?.addEventListener("click", () => submitCreateFact());
+if (taskDetailModal) {
+  taskDetailModal.addEventListener("click", (e) => {
+    if (e.target === taskDetailModal) closeTaskDetailModal();
+  });
+}
+if (closeTaskDetailModalBtn) closeTaskDetailModalBtn.addEventListener("click", () => closeTaskDetailModal());
+if (closeTaskDetailFooterBtn) closeTaskDetailFooterBtn.addEventListener("click", () => closeTaskDetailModal());
 if (newTaskDueDate) newTaskDueDate.addEventListener("change", syncDueFromDatePicker);
 if (newTaskDueText) newTaskDueText.addEventListener("input", syncDueFromTextField);
 if (newTaskRecurText) newTaskRecurText.addEventListener("input", updateTaskRecurPreview);
@@ -1593,6 +1975,36 @@ timelineMonth?.addEventListener("change", refreshTimelineViews);
 closeHistoryBtn.addEventListener("click", () => {
   historyDrawer.classList.add("hidden");
 });
+
+factsWorkspaceSlug?.addEventListener("change", () => renderFactsWorkspace());
+for (const btn of document.querySelectorAll(".factsFilterBtn")) {
+  btn.addEventListener("click", () => {
+    for (const b of document.querySelectorAll(".factsFilterBtn")) b.classList.remove("active");
+    btn.classList.add("active");
+    renderFactsWorkspace();
+  });
+}
+taskDetailSaveFactsBtn?.addEventListener("click", async () => {
+  if (!taskDetailBoardTask) return;
+  const slug = taskDetailBoardTask.projectSlug;
+  const taskId = taskDetailBoardTask.id;
+  const ids = getSelectedValues(taskDetailFactRefsSelect);
+  try {
+    await saveTaskFactRefs(slug, taskId, ids);
+    factOptionsByProject.delete(slug);
+    await refresh();
+    const proj = currentProjects.find((p) => p.slug === slug);
+    const nextBoard = {
+      ...taskDetailBoardTask,
+      versionToken: proj?.versionToken || taskDetailBoardTask.versionToken
+    };
+    openTaskDetailModal(nextBoard);
+    statusFlash.show("Fact links saved");
+  } catch (error) {
+    statusFlash.show(error.message, { error: true });
+  }
+});
+
 setActiveTab(localStorage.getItem(ACTIVE_TAB_KEY) || "overview", false);
 applyDigestPrefs(readDigestPrefs());
 renderSavedViews();
@@ -1616,7 +2028,7 @@ document.getElementById("dashCommandPaletteBtn")?.addEventListener("click", () =
 document.getElementById("dashHelpLink")?.addEventListener("click", (e) => {
   e.preventDefault();
   statusFlash.show(
-    "Search and filters: use the toolbar search. Command palette: sidebar button or ⌃/⌘K. Sections: left nav. Escape closes overlays.",
+    "Search and filters: toolbar search. Command palette: sidebar or ⌃/⌘K. Facts: left nav → Facts (create → assign → update). Escape closes overlays.",
     { clearAfterMs: 12000 }
   );
 });

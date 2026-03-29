@@ -14,6 +14,19 @@ Authoritative CLI command and script reference from `package.json` and `scripts/
 - `npm run project:delete -- --slug <slug> --confirm-slug <same-as-slug>`
   - Permanently deletes `projects/<slug>/` (destructive; confirmation token must match).
 
+## Project facts (research registry + task links)
+
+Runs against `projects/<slug>/` without starting the HTTP server. Registry lives in `research.md`; task links are `[facts:...]` lines in `tasks.md`. Uses README `versionToken` (mtime) before writes, same as the API.
+
+- `npm run project:facts -- list --slug <slug> [--unassigned]`
+  - Prints JSON: each fact includes `assignedToTaskIds`. With `--unassigned`, only facts not referenced by any task in that project.
+- `npm run project:facts -- create --slug <slug> --statement "..." [--status <s>] [--source <url>] [--verificationNote "..."]`
+  - Appends a fact to the registry (`verified` requires source + verification note).
+- `npm run project:facts -- update --slug <slug> --factId <id> [--statement "..."] [--status <s>] [--sources "a,b"] [--verificationNote "..."]`
+  - Patches one fact; omitted flags keep existing field values.
+- `npm run project:facts -- assign --slug <slug> --taskId <id> --factId <id>`
+  - Merges one fact onto a task (equivalent to dashboard “assign” / `PATCH .../tasks/:id/facts` with merged list).
+
 ## Vault (second brain) CLI
 
 Runs against `vault/` without starting the HTTP server:

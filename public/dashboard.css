@@ -73,6 +73,40 @@ body.vault-app.dash-app {
   flex-shrink: 0;
 }
 
+/* Projects tab: task + facts launch buttons */
+.dash-task-launch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+.dash-task-launch-row .dash-task-launch-btn {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+/* Project card: Status → decision note → Save on one row */
+.dash-app .project-card-status-row {
+  align-items: center;
+}
+.dash-app .project-card-status-row > label {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vault-muted);
+}
+.dash-app .project-card-status-row > .statusSelect {
+  flex: 0 1 140px;
+  min-width: 0;
+}
+.dash-app .project-card-status-row > .decisionNoteInput {
+  flex: 1 1 180px;
+  min-width: 120px;
+}
+.dash-app .project-card-status-row > .saveStatus {
+  flex: 0 0 auto;
+}
+
 .dash-workspace-hint {
   margin: 0 8px 0 12px;
   font-size: 12px;
@@ -227,6 +261,10 @@ body.vault-app.dash-app {
   color: var(--vault-text);
 }
 
+.dash-app .kanban-project {
+  color: var(--vault-text-muted, #8b9dc3);
+}
+
 /* Calendar */
 .dash-app .calendar-day {
   background: var(--vault-container-low);
@@ -246,6 +284,11 @@ body.vault-app.dash-app {
 /* Timeline legend */
 .dash-app .timeline-legend {
   color: var(--vault-muted);
+}
+
+/* Fact create dialog: above main toolbar overlays */
+#factCreateModal.task-modal-overlay {
+  z-index: 100;
 }
 
 /* Fixed modal overlays */
@@ -327,4 +370,121 @@ body.vault-app.dash-app {
     width: 100%;
     text-align: left;
   }
+}
+
+/* Facts workspace + task detail fact links */
+.dash-app .dash-facts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.dash-app .dash-fact-card {
+  border: 1px solid var(--vault-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: var(--vault-container-low);
+}
+.dash-app .dash-fact-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.dash-app .dash-fact-card-head code {
+  font-family: var(--vault-font-mono);
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--vault-container);
+  border: 1px solid var(--vault-border);
+  color: var(--vault-primary);
+}
+.dash-app .dash-fact-badge {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4px 8px;
+  border-radius: 999px;
+}
+.dash-app .dash-fact-badge--free {
+  background: var(--vault-container-high);
+  color: var(--vault-muted);
+  border: 1px solid var(--vault-border);
+}
+.dash-app .dash-fact-badge--linked {
+  background: var(--vault-blue-dim);
+  color: var(--vault-tertiary);
+}
+.dash-app .dash-fact-statement {
+  margin: 0 0 6px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--vault-text);
+}
+.dash-app .dash-fact-meta {
+  margin: 0 0 8px !important;
+}
+.dash-app ul.dash-fact-linked-tasks {
+  margin: 0 0 12px;
+  padding-left: 1.2rem;
+  font-size: 13px;
+  color: var(--vault-muted);
+}
+.dash-app .dash-fact-assign-row {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.dash-app .dash-fact-assign-row .task-modal-label {
+  width: 100%;
+  margin-bottom: 0;
+}
+.dash-app .dash-fact-assign-row select {
+  flex: 1;
+  min-width: 160px;
+}
+.dash-app details.dash-fact-edit {
+  margin-top: 8px;
+  border-top: 1px solid var(--vault-border);
+  padding-top: 10px;
+}
+.dash-app details.dash-fact-edit summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vault-muted);
+}
+.dash-app .dash-fact-edit-grid {
+  margin-top: 12px;
+}
+.dash-app .dash-facts-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0 20px;
+}
+.dash-app .factsFilterBtn.active {
+  border-color: rgba(139, 92, 246, 0.55);
+  color: var(--vault-primary);
+}
+.dash-app ul.factList {
+  max-height: 280px;
+  overflow-y: auto;
+}
+.dash-app .task-detail-modal-body {
+  display: flex;
+  flex-direction: column;
+  max-height: min(70vh, 640px);
+}
+.dash-app .task-detail-facts-section {
+  margin-top: 8px;
+  flex-shrink: 0;
+}
+.dash-app #taskDetailModalBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }

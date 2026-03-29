@@ -9,6 +9,7 @@
     "start": "node src/server.js",
     "new:project": "node scripts/new-project.mjs",
     "project:delete": "node scripts/project-delete.mjs",
+    "project:facts": "node scripts/project-facts.mjs",
     "vault:crud": "node scripts/vault-crud.mjs",
     "validate": "node scripts/validate.mjs",
     "stale": "node scripts/stale-report.mjs",
@@ -27,7 +28,8 @@
     "mcp:start": "node src/mcp-server.js",
     "mcp:dev": "node src/mcp-server.js",
     "mcp:smoke": "node scripts/mcp-smoke.mjs",
-    "diag:mermaid-expand": "node scripts/playwright-mermaid-expand-diag.mjs"
+    "diag:mermaid-expand": "node scripts/playwright-mermaid-expand-diag.mjs",
+    "diag:facts": "node scripts/playwright-facts-diag.mjs"
   },
   "dependencies": {
     "@excalidraw/utils": "^0.1.2",

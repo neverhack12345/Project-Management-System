@@ -390,7 +390,7 @@ async function createApp() {
     const lanes = { backlog: [], todo: [], "in-progress": [], done: [] };
     for (const project of projects) {
       for (const task of project.tasks || []) {
-        const lane = task.state || (task.done ? "done" : "todo");
+        const lane = task.state || (task.done ? "done" : "backlog");
         if (!lanes[lane]) continue;
         lanes[lane].push({
           id: task.id,
@@ -399,6 +399,7 @@ async function createApp() {
           projectSlug: project.slug,
           projectName: project.name,
           dueDate: task.dueDate,
+          state: lane,
           dependsOn: task.dependsOn || [],
           unresolvedFactRefs: task.unresolvedFactRefs || [],
           versionToken: project.versionToken

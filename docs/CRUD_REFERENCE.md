@@ -32,6 +32,18 @@ Single index for creating, reading, updating, and deleting **projects** (`projec
 | Update fact refs | `update_task_fact_refs` | — | `PATCH .../facts` | `tasks.md` |
 | Delete | `remove_project_task` | — | — | `tasks.md` |
 
+### Research facts (per project)
+
+Flow: **create** in registry → **assign** to tasks (`factRefs` / `update_task_fact_refs`) → **update** status and details. Unassigned facts exist in `research.md` but appear on no task line’s `[facts:...]`.
+
+| Operation | MCP | CLI | HTTP | Files |
+|-----------|-----|-----|------|--------|
+| List registry | `get_project_facts` | `npm run project:facts -- list --slug <s>` | `GET /api/projects/:slug/facts` | `research.md` |
+| List unassigned | — (derive from `get_project`: facts not in any `tasks[].factRefs`) | `npm run project:facts -- list --slug <s> --unassigned` | — | `research.md` + `tasks.md` |
+| Create | `add_project_fact` | `npm run project:facts -- create --slug <s> --statement "..."` | `POST /api/projects/:slug/facts` | `research.md` |
+| Update fields | `update_project_fact` | `npm run project:facts -- update --slug <s> --factId <id> ...` | `PATCH /api/projects/:slug/facts/:factId` | `research.md` |
+| Assign to task | `update_task_fact_refs` (full merged list) | `npm run project:facts -- assign --slug <s> --taskId <id> --factId <id>` | `PATCH /api/projects/:slug/tasks/:taskId/facts` | `tasks.md` |
+
 ### Vault (second brain)
 
 | Operation | MCP | CLI | HTTP | Files |

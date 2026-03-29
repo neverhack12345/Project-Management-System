@@ -7,3 +7,4 @@ Source files are **not** duplicated in this skill. Paths below are relative to t
 | MCP server (tool registry and handlers) | `src/mcp-server.js` |
 | Project markdown load/update (tasks, facts, milestones) | `src/markdown-store.js` |
 | HTTP API (projects and shared routes) | `src/server.js` |
+| Facts CLI (`npm run project:facts`) | `scripts/project-facts.mjs` |

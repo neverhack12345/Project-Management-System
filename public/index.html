@@ -63,6 +63,18 @@
           <button
             type="button"
             class="vault-side-link tab-btn"
+            id="tabBtnFacts"
+            role="tab"
+            aria-selected="false"
+            aria-controls="tabFacts"
+            data-tab="facts"
+          >
+            <span class="material-symbols-outlined vault-ms" aria-hidden="true">fact_check</span>
+            Facts
+          </button>
+          <button
+            type="button"
+            class="vault-side-link tab-btn"
             id="tabBtnTimeline"
             role="tab"
             aria-selected="false"
@@ -89,7 +101,7 @@
           <span class="vault-workspace-label">Workspace</span>
         </div>
         <div class="vault-tree-scroll dash-sidebar-hint">
-          <p class="dash-workspace-hint">Use filters below, then switch tabs for overview, kanban, calendar, and ops.</p>
+          <p class="dash-workspace-hint">Use filters below, then switch tabs for overview, kanban, facts, calendar, and ops.</p>
         </div>
         <footer class="vault-sidebar-footer">
           <a class="vault-btn-new vault-btn-new--footer" href="/notes.html">
@@ -286,6 +298,10 @@
       </section>
 
       <section id="tabProjects" class="tab-panel" role="tabpanel" aria-labelledby="tabBtnProjects" hidden>
+        <section>
+          <h2>Task Kanban</h2>
+          <div id="kanbanBoard" class="kanban-board"></div>
+        </section>
         <section class="cards">
           <article class="card">
             <h2>Add Project</h2>
@@ -328,17 +344,66 @@
           </article>
           <article class="card card-task-launch">
             <h2>Tasks</h2>
-            <p class="helper-text">Open the task dialog to set description, priority, due date, recurrence, and dependencies.</p>
-            <button type="button" id="openTaskModalBtn" class="vault-btn-new vault-btn-new--inline vault-btn-new--block">Create task…</button>
+            <p class="helper-text">Open the task dialog to set description, priority, due date, recurrence, and dependencies. Create facts opens the same style dialog as tasks.</p>
+            <div class="dash-task-launch-row" role="group" aria-label="Create task or fact">
+              <button type="button" id="openTaskModalBtn" class="vault-btn-new vault-btn-new--inline dash-task-launch-btn">Create task…</button>
+              <button
+                type="button"
+                id="openFactsCreateBtn"
+                class="vault-btn-new vault-btn-new--inline dash-task-launch-btn"
+                data-open-fact-modal="projects"
+              >
+                Create facts…
+              </button>
+            </div>
           </article>
-        </section>
-        <section>
-          <h2>Task Kanban</h2>
-          <div id="kanbanBoard" class="kanban-board"></div>
         </section>
         <section>
           <h2>Projects</h2>
           <div id="projectList" class="cards"></div>
+        </section>
+      </section>
+
+      <section id="tabFacts" class="tab-panel" role="tabpanel" aria-labelledby="tabBtnFacts" hidden>
+        <section class="cards">
+          <article class="card dash-facts-workspace">
+            <h2>Research facts</h2>
+            <p class="helper-text">
+              Flow: create a fact in the registry → assign it to one or more tasks → update status and details as you verify. Use “All
+              facts” for the full list, or “Unassigned only” for facts not linked to any task yet.
+            </p>
+            <div class="form-grid">
+              <label class="field">
+                <span>Project</span>
+                <select id="factsWorkspaceSlug" title="Facts are stored in this project’s research.md registry"></select>
+              </label>
+            </div>
+            <div class="dash-facts-filter-row" role="group" aria-label="Filter facts list">
+              <button type="button" class="factsFilterBtn vault-btn-new vault-btn-new--inline vault-btn-new--secondary active" data-facts-filter="all">
+                All facts
+              </button>
+              <button type="button" class="factsFilterBtn vault-btn-new vault-btn-new--inline vault-btn-new--secondary" data-facts-filter="unassigned">
+                Unassigned only
+              </button>
+            </div>
+            <h3>Create fact</h3>
+            <p class="helper-text">
+              New facts start in the registry unassigned. Use the dialog to add a statement and details, then link facts to tasks from the
+              board or task detail.
+            </p>
+            <div class="row">
+              <button
+                type="button"
+                id="openFactModalFromFactsTabBtn"
+                class="vault-btn-new vault-btn-new--inline"
+                data-open-fact-modal="facts"
+              >
+                Create fact…
+              </button>
+            </div>
+            <h3>Registry</h3>
+            <div id="factsWorkspaceList" class="dash-facts-list"></div>
+          </article>
         </section>
       </section>
 
@@ -502,7 +567,10 @@
         <h3 class="title"></h3>
         <p class="meta"></p>
         <p class="action"></p>
-        <div class="row stack-row">
+        <div class="row stack-row project-card-select-row">
+          <label><input type="checkbox" class="selectProject" /> select</label>
+        </div>
+        <div class="row project-card-status-row">
           <label>Status</label>
           <select class="statusSelect">
             <option value="idea">idea</option>
@@ -511,43 +579,15 @@
             <option value="blocked">blocked</option>
             <option value="done">done</option>
           </select>
-          <button type="button" class="saveStatus vault-btn-new vault-btn-new--inline">Save</button>
-        </div>
-        <div class="row stack-row">
           <input class="decisionNoteInput" placeholder="Decision note" title="Required when setting blocked or done" />
-        </div>
-        <div class="row stack-row">
-          <input class="taskInput" placeholder="Quick add task..." />
-          <input class="taskDueDate" type="date" title="Task deadline" />
-          <select class="taskDeps" multiple size="2" title="Depends on"></select>
-          <select class="taskFacts" multiple size="2" title="Fact refs"></select>
-          <select class="taskRecur">
-            <option value="">no recur</option>
-            <option value="daily">daily</option>
-            <option value="weekly">weekly</option>
-            <option value="monthly">monthly</option>
-          </select>
-          <button type="button" class="addTask vault-btn-new vault-btn-new--inline">Add Task</button>
+          <button type="button" class="saveStatus vault-btn-new vault-btn-new--inline">Save</button>
         </div>
         <div class="row stack-row">
           <input class="blockedReasonInput" placeholder="Blocked reason" title="Explain what is blocking this project" />
           <button type="button" class="saveMeta vault-btn-new vault-btn-new--inline">Save Meta</button>
         </div>
-        <div class="row stack-row">
-          <input class="factStatementInput" placeholder="Add fact statement..." />
-          <select class="factStatusSelect">
-            <option value="unknown">unknown</option>
-            <option value="unverified">unverified</option>
-            <option value="in-review">in-review</option>
-            <option value="verified">verified</option>
-          </select>
-          <input class="factSourceInput" placeholder="source URL/reference" title="Source URL or reference for this fact" />
-          <input class="factNoteInput" placeholder="verification note" title="Brief note describing verification" />
-          <button type="button" class="addFact vault-btn-new vault-btn-new--inline">Add Fact</button>
-        </div>
         <ul class="factList history"></ul>
         <div class="row stack-row">
-          <label><input type="checkbox" class="selectProject" /> select</label>
           <button type="button" class="loadHistory vault-btn-new vault-btn-new--inline vault-btn-new--secondary">Open History</button>
         </div>
       </article>
@@ -665,6 +705,96 @@
         <footer class="task-modal-footer">
           <button type="button" id="createTaskBtn" class="task-modal-apply">Apply</button>
           <button type="button" id="cancelTaskModalBtn" class="task-modal-cancel">Cancel</button>
+        </footer>
+      </div>
+    </div>
+
+    <div id="factCreateModal" class="task-modal-overlay vault-overlay-scrim" hidden>
+      <div class="task-modal" role="dialog" aria-modal="true" aria-labelledby="factModalTitle">
+        <header class="task-modal-header">
+          <h2 id="factModalTitle">Create fact</h2>
+          <div class="task-modal-header-actions">
+            <button type="button" class="task-modal-icon-btn" id="closeFactModalBtn" aria-label="Close dialog">×</button>
+          </div>
+        </header>
+
+        <div class="task-modal-body">
+          <label class="task-modal-field task-modal-field-project">
+            <span class="task-modal-label">Project</span>
+            <select id="newFactSlug" class="task-modal-input"></select>
+          </label>
+
+          <hr class="task-modal-rule" />
+
+          <label class="task-modal-field">
+            <span class="task-modal-label">Statement</span>
+            <textarea
+              id="newFactStatement"
+              class="task-modal-textarea"
+              rows="4"
+              placeholder="What you need to track or verify…"
+              title="Fact statement"
+            ></textarea>
+          </label>
+
+          <hr class="task-modal-rule" />
+
+          <label class="task-modal-field">
+            <span class="task-modal-label">Status</span>
+            <select id="newFactStatus" class="task-modal-input">
+              <option value="unknown">unknown</option>
+              <option value="unverified">unverified</option>
+              <option value="in-review">in-review</option>
+              <option value="verified">verified</option>
+            </select>
+          </label>
+
+          <hr class="task-modal-rule" />
+
+          <label class="task-modal-field">
+            <span class="task-modal-label">Source (optional)</span>
+            <span class="task-modal-hint">Required when status is verified</span>
+            <input id="newFactSource" type="text" class="task-modal-input" placeholder="URL or reference" autocomplete="off" />
+          </label>
+
+          <label class="task-modal-field">
+            <span class="task-modal-label">Verification note (optional)</span>
+            <span class="task-modal-hint">Required when status is verified</span>
+            <input id="newFactNote" type="text" class="task-modal-input" placeholder="How this was checked" autocomplete="off" />
+          </label>
+        </div>
+
+        <footer class="task-modal-footer">
+          <button type="button" id="createFactBtn" class="task-modal-apply">Create fact</button>
+          <button type="button" id="cancelFactModalBtn" class="task-modal-cancel">Cancel</button>
+        </footer>
+      </div>
+    </div>
+
+    <div id="taskDetailModal" class="task-modal-overlay vault-overlay-scrim" hidden>
+      <div class="task-modal" role="dialog" aria-modal="true" aria-labelledby="taskDetailModalTitle">
+        <header class="task-modal-header">
+          <h2 id="taskDetailModalTitle">Task details</h2>
+          <div class="task-modal-header-actions">
+            <button type="button" class="task-modal-icon-btn" id="closeTaskDetailModalBtn" aria-label="Close dialog">×</button>
+          </div>
+        </header>
+        <div class="task-modal-body task-detail-modal-body">
+          <div id="taskDetailModalBody">
+            <p class="helper-text">Select a task on the Kanban board to view details.</p>
+          </div>
+          <div id="taskDetailFactsSection" class="task-detail-facts-section" hidden>
+            <hr class="task-modal-rule" />
+            <p class="task-modal-label">Facts linked to this task</p>
+            <p class="helper-text">Choose facts from this project’s registry, then save. Use Create fact… (Facts tab or Projects) or assign from the Facts registry.</p>
+            <select id="taskDetailFactRefsSelect" class="task-modal-input task-modal-multiselect" multiple size="5" title="Fact references"></select>
+            <div class="row" style="margin-top: 10px">
+              <button type="button" id="taskDetailSaveFactsBtn" class="vault-btn-new vault-btn-new--inline">Save fact links</button>
+            </div>
+          </div>
+        </div>
+        <footer class="task-modal-footer">
+          <button type="button" id="closeTaskDetailFooterBtn" class="task-modal-cancel">Close</button>
         </footer>
       </div>
     </div>

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import matter from "gray-matter";
@@ -129,7 +130,44 @@ function normalizeTaskState(rawState, isDone) {
   const value = String(rawState || "").trim().toLowerCase();
   if (isDone) return "done";
   if (TASK_LANES.has(value) && value !== "done") return value;
-  return "todo";
+  return "backlog";
+}
+
+function stableLegacyTaskId(projectSlug, lineTrimmed) {
+  const h = createHash("sha256").update(`${projectSlug}\n${lineTrimmed}`).digest("hex").slice(0, 12);
+  return `t-${h}`;
+}
+
+/** Ensures every checkbox task line has [id:…] and open tasks have [state:…] (default backlog). Persists when changed. */
+export function materializeTaskAnchors(markdown, projectSlug) {
+  const lines = String(markdown || "").split("\n");
+  let changed = false;
+  const next = lines.map((line) => {
+    const isOpen = line.startsWith("- [ ] ");
+    const isDone = line.startsWith("- [x] ");
+    if (!isOpen && !isDone) return line;
+
+    let out = line;
+    if (!/\[id:[a-z0-9][a-z0-9-]*\]/i.test(out)) {
+      const tid = stableLegacyTaskId(projectSlug, line.trim());
+      const rest = out.replace(/^- \[[ x]\] /, "");
+      const bracket = rest.search(/\s\[/);
+      if (bracket === -1) {
+        out = `${isDone ? "- [x] " : "- [ ] "}${rest.trim()} [id:${tid}]`;
+      } else {
+        const title = rest.slice(0, bracket).trimEnd();
+        const suffix = rest.slice(bracket);
+        out = `${isDone ? "- [x] " : "- [ ] "}${title} [id:${tid}]${suffix}`;
+      }
+      changed = true;
+    }
+    if (!isDone && !/\[state:(backlog|todo|in-progress|done)\]/.test(out)) {
+      out = `${out.trimEnd()} [state:backlog]`;
+      changed = true;
+    }
+    return out;
+  });
+  return { markdown: next.join("\n"), changed };
 }
 
 function parseTaskLine(line, projectSlug) {
@@ -259,12 +297,18 @@ export async function loadProject(slug) {
   const milestonesPath = path.join(projectDir, "milestones.md");
   const tasksPath = path.join(projectDir, "tasks.md");
 
-  const [readme, milestones, tasks, research] = await Promise.all([
+  const [readme, milestones, tasksRaw, research] = await Promise.all([
     readMarkdownFile(readmePath),
     readMarkdownFile(milestonesPath),
     fs.readFile(tasksPath, "utf8"),
     fs.readFile(researchPath, "utf8")
   ]);
+
+  const materialized = materializeTaskAnchors(tasksRaw, slug);
+  let tasks = materialized.markdown;
+  if (materialized.changed) {
+    await atomicWrite(tasksPath, tasks.endsWith("\n") ? tasks : `${tasks}\n`);
+  }
 
   const readmeStats = await fs.stat(readmePath);
   const milestonesData = Array.isArray(milestones.data.milestones) ? milestones.data.milestones : [];
@@ -444,7 +488,7 @@ export async function addTask(slug, task, dueDate, recurrence = "", dependsOn = 
   const factsToken = normalizedFacts.length ? ` [facts:${normalizedFacts.join(",")}]` : "";
   const dueToken = ` [due:${String(dueDate)}]`;
   const idToken = ` [id:${taskId}]`;
-  const stateToken = " [state:todo]";
+  const stateToken = " [state:backlog]";
   const next = `${raw.trimEnd()}\n- [ ] ${task}${idToken}${dueToken}${stateToken}${depsToken}${factsToken}${recurToken}\n`;
   await atomicWrite(taskPath, next);
   return { updatedFile: taskPath, taskId };
@@ -531,7 +575,7 @@ function validateDepRefs(normalizedDeps) {
 function buildTaskLine(slug, parts) {
   const isDone = Boolean(parts.isDone);
   const prefix = isDone ? "- [x] " : "- [ ] ";
-  const lane = isDone ? "done" : String(parts.state || "todo").trim().toLowerCase();
+  const lane = isDone ? "done" : String(parts.state || "backlog").trim().toLowerCase();
   const idToken = ` [id:${parts.taskId}]`;
   const dueToken = parts.due ? ` [due:${parts.due}]` : "";
   const stateToken = ` [state:${lane}]`;

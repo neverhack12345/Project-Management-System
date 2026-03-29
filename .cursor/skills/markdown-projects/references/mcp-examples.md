@@ -74,7 +74,16 @@ If conflict occurs (`VERSION_CONFLICT`), re-read project and retry with latest t
 3. Re-run with `{ "dryRun": false, "maxActions": 20 }`.
 4. Call `get_actionable_playbook` to confirm remaining manual actions.
 
-## 11) Add and verify a project fact
+## 11) Research facts: create → assign → update
+
+Use this order for the full workflow (matches dashboard **Facts** tab and `npm run project:facts --`).
+
+1. `get_project({ slug })` → `versionToken`, `tasks[].id`, `tasks[].factRefs`, and `facts` (if you need unassigned: refs not appearing in any task’s `factRefs`).
+2. `add_project_fact({ slug, statement, status: "unverified", versionToken })` → registry entry.
+3. `get_project` again → new `versionToken`. Build merged `factRefs` = existing task ids + new `factId` (local id or `slug:factId`). Call `update_task_fact_refs({ slug, taskId, factRefs: merged, versionToken })`.
+4. When ready to verify: `get_project` → `update_project_fact({ slug, factId, status: "verified", sources: ["https://..."], verificationNote: "...", versionToken })`.
+
+## 12) Add and verify a project fact (minimal)
 
 1. Call `get_project` with `slug` and capture `versionToken`.
 2. Call `add_project_fact` with:
@@ -91,16 +100,16 @@ If conflict occurs (`VERSION_CONFLICT`), re-read project and retry with latest t
    - `verificationNote`: `"Checked against source and confirmed"`
    - `versionToken`
 
-## 12) Link fact refs to a task
+## 13) Link fact refs to a task
 
-1. Call `get_project` and read `versionToken`.
+1. Call `get_project` and read `versionToken` and the task’s current `factRefs` (merge before replace).
 2. Call `update_task_fact_refs` with:
    - `slug`
    - `taskId`
    - `factRefs`: `["f-market-size", "other-project:f-legal-approved"]`
    - `versionToken`
 
-## 13) Move task lanes with verification gating
+## 14) Move task lanes with verification gating
 
 1. Call `get_project` and read `versionToken`.
 2. Call `move_project_task_lane` with:
@@ -110,7 +119,7 @@ If conflict occurs (`VERSION_CONFLICT`), re-read project and retry with latest t
    - `versionToken`
 3. If blocked, verify or relink unresolved facts and retry.
 
-## 14) Create a new project from MCP
+## 15) Create a new project from MCP
 
 1. Call `create_project` with:
    - `name`: `"Q2 Reliability"`
@@ -118,7 +127,7 @@ If conflict occurs (`VERSION_CONFLICT`), re-read project and retry with latest t
    - `dueDays`: `45`
 2. Call `list_projects` or `get_project` with the new slug (derived from the name) to confirm files exist.
 
-## 15) Vault note create, link, move, delete
+## 16) Vault note create, link, move, delete
 
 1. `vault_list_tree` to see existing paths.
 2. `vault_create_note` with `path`: `"Ideas/Scratch.md"`, `title`: `"Scratch"`, optional `content` body with `[[Welcome]]` wiki links.
@@ -126,13 +135,13 @@ If conflict occurs (`VERSION_CONFLICT`), re-read project and retry with latest t
 4. `vault_move_note` with `from`: `"Ideas/Scratch.md"`, `to`: `"Archive/Scratch.md"`.
 5. `vault_delete_note` with `path`: `"Archive/Scratch.md"` when finished (destructive).
 
-## 16) Edit and remove a task
+## 17) Edit and remove a task
 
 1. `get_project` → `versionToken` and `tasks[].id`.
 2. `update_project_task` with `slug`, `taskId`, `versionToken`, and patches such as `title`, `dueDate`, or `dependsOn`.
 3. To remove: `remove_project_task` with `slug`, `taskId`, `versionToken` (fails if another task depends on this one).
 
-## 17) Delete a project (destructive)
+## 18) Delete a project (destructive)
 
 1. Confirm the slug is correct.
 2. `delete_project` with `slug` and `confirmSlug` set to the same value (e.g. both `"old-initiative"`).

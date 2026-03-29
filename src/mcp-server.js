@@ -81,7 +81,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "get_timeline", description: "Get milestone timeline", inputSchema: { type: "object", properties: {} } },
     {
       name: "get_project_facts",
-      description: "Get project fact registry",
+      description:
+        "List facts from projects/<slug>/research.md registry (JSON block). For unassigned facts, use get_project and filter: fact.ref not listed in any tasks[].factRefs.",
       inputSchema: { type: "object", required: ["slug"], properties: { slug: { type: "string" } } }
     },
     { name: "get_activity", description: "Get portfolio git activity", inputSchema: { type: "object", properties: { limit: { type: "number" }, skip: { type: "number" } } } },
@@ -163,7 +164,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: "add_project_task",
-      description: "Add task to project (side effect, requires versionToken)",
+      description:
+        "Add task to project (side effect, requires versionToken). Optional factRefs links registry facts at creation (same ids as update_task_fact_refs).",
       inputSchema: {
         type: "object",
         required: ["slug", "task", "dueDate", "versionToken"],
@@ -180,7 +182,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: "add_project_fact",
-      description: "Add a project fact (side effect, requires versionToken)",
+      description:
+        "Create a fact in the research.md registry (step 1 of workflow). Does not attach to tasks; use update_task_fact_refs or add_project_task.factRefs to assign. verified status requires sources + verificationNote.",
       inputSchema: {
         type: "object",
         required: ["slug", "statement", "versionToken"],
@@ -199,7 +202,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: "update_project_fact",
-      description: "Update a project fact (side effect, requires versionToken)",
+      description:
+        "Update fact statement/status/sources/verification fields (step 3). Same validation as server: verified requires sources + verificationNote.",
       inputSchema: {
         type: "object",
         required: ["slug", "factId", "versionToken"],
@@ -218,7 +222,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: "update_task_fact_refs",
-      description: "Update task fact references (side effect, requires versionToken)",
+      description:
+        "Set the full [facts:...] list for one task (step 2: assign). Pass every fact id to keep (local ids or slug:factId); replaces existing refs. Merge client-side from get_project.tasks[].factRefs if adding one fact.",
       inputSchema: {
         type: "object",
         required: ["slug", "taskId", "factRefs", "versionToken"],

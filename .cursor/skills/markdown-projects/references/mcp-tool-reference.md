@@ -22,7 +22,7 @@ Authoritative reference for tools/resources exposed by `src/mcp-server.js`.
 - `list_projects()`
 - `get_project({ slug })`
 - `get_timeline()`
-- `get_project_facts({ slug })`
+- `get_project_facts({ slug })` — fact registry only; combine with `get_project` to see `tasks[].factRefs` and compute unassigned facts
 - `get_activity({ limit?, skip? })`
 - `get_health()`
 - `get_dependencies()`
@@ -73,9 +73,9 @@ Paths are vault-relative (forward slashes), extensions `.md`, `.mmd`, or `.merma
   - Setting `state: "done"` or `done: true` uses the same unresolved-fact gating as `move_project_task_lane`.
 - `remove_project_task({ slug, taskId, versionToken })`
   - Fails if any task in any project lists this task in `[deps:...]` (cross-project safe).
-- `add_project_fact({ slug, statement, status?, sources?, verificationNote?, verifiedBy?, verifiedAt?, versionToken })`
-- `update_project_fact({ slug, factId, statement?, status?, sources?, verificationNote?, verifiedBy?, verifiedAt?, versionToken })`
-- `update_task_fact_refs({ slug, taskId, factRefs, versionToken })`
+- `add_project_fact({ slug, statement, status?, sources?, verificationNote?, verifiedBy?, verifiedAt?, versionToken })` — create in registry (step 1); does not attach to tasks
+- `update_project_fact({ slug, factId, statement?, status?, sources?, verificationNote?, verifiedBy?, verifiedAt?, versionToken })` — update statement / status / sources (step 3)
+- `update_task_fact_refs({ slug, taskId, factRefs, versionToken })` — replace task’s fact list (step 2); pass complete merged array of fact ids (`slug:factId` or local id)
 - `move_project_task_lane({ slug, taskId, state, versionToken })`
   - moving to `done` is rejected when linked fact refs are unresolved.
 - `update_project_meta({ slug, blockedReason?, nextAction?, priority?, versionToken })`
@@ -105,6 +105,15 @@ Paths are vault-relative (forward slashes), extensions `.md`, `.mmd`, or `.merma
 - `resource://docs/crud` -> `docs/CRUD_REFERENCE.md`
 - `resource://reports/latest-weekly` -> latest weekly report markdown
 - `resource://reports/alerts` -> latest alerts json
+
+## Research facts workflow (create → assign → update)
+
+1. `get_project({ slug })` → `versionToken`, `tasks[].id`, `tasks[].factRefs`, existing `facts` on project payload.
+2. `add_project_fact({ slug, statement, status, versionToken, ... })` → new `factId` in registry.
+3. `get_project` again → fresh `versionToken`, then `update_task_fact_refs({ slug, taskId, factRefs: [...existing local ids..., newId], versionToken })` (merge client-side from step 1).
+4. `get_project` → `versionToken`, then `update_project_fact({ slug, factId, status, sources, verificationNote, versionToken })` when verifying (`verified` requires non-empty `sources` and `verificationNote`).
+
+CLI equivalent: `npm run project:facts --` with `create`, `assign`, `update` subcommands (see `docs/CLI_OPS_REFERENCE.md`). Dashboard: **Facts** tab and task detail dialog.
 
 ## Recommended call sequences
 

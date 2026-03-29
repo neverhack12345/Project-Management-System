@@ -14,12 +14,16 @@ export async function buildIndex() {
       status: project.status,
       priority: project.priority,
       tags: project.tags,
+      description: project.description || "",
       dueDate: project.dueDate,
       startDate: project.startDate,
       lastUpdated: project.lastUpdated,
       nextAction: project.nextAction,
       blockedReason: project.blockedReason,
       taskSummary: project.taskSummary,
+      factsSummary: project.factsSummary,
+      facts: project.facts || [],
+      tasks: project.tasks || [],
       versionToken: project.versionToken,
       milestones: project.milestones
     }))

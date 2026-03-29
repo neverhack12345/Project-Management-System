@@ -119,10 +119,18 @@ Use these cards for day-to-day creation work (no JSON required).
   - `Quick Project`: uses `Title / Name` as project name, plus `Owner`, `Due in days`, `Description / Next action`, optional `Estimate hours` and `Urgency/Priority`
   - `Incoming Event`: uses `Title / Name`, `Description`, `Owner`, optional `Urgency`, `Project slug`, `Estimate hours`, `Due in days`, and `Event kind`
 
+## Facts tab (registry workflow)
+
+1. Open **Facts** in the left nav (same shell as Overview / Projects).
+2. Choose **Project**, then **Create fact** (registry entry; optional source / note; `verified` requires both).
+3. Use **All facts** or **Unassigned only** to filter. Unassigned = not linked on any task `[facts:...]` line.
+4. **Assign**: pick a task and click **Assign** to merge that fact onto the task (or use task detail dialog fact multiselect, or **Create task** / project card with fact refs).
+5. Expand **Edit statement, status…** on a card to update details; or edit links from the task detail dialog after opening a Kanban card.
+
 ## Fact verification workflow
 
-1. Add facts from the project card Facts tracker (`statement`, `status`, optional source/note).
-2. Link facts to tasks using `fact refs` when creating tasks (or via API/MCP update endpoints).
+1. Create facts in the **Facts** tab or the project card Facts tracker (`statement`, `status`, optional source/note).
+2. Link facts to tasks via **Assign**, task detail **Save fact links**, or `fact refs` when creating tasks (or API / MCP / `npm run project:facts -- assign`).
 3. Move facts to `verified` only after entering at least one source and a verification note.
 4. Move tasks to `done` only after linked facts are resolved; otherwise the move is blocked.
 5. Move project status to `done` only after unresolved project facts are zero.

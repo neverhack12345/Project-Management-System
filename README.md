@@ -14,6 +14,7 @@ Markdown-first project and milestone tracker with dashboard UI, automation playb
 1. `npm install`
 2. `npm run new:project -- --name "My Project" --owner "You"`
    - Delete a project folder: `npm run project:delete -- --slug <slug> --confirm-slug <slug>`
+   - Facts CLI (registry + assign, no server): `npm run project:facts -- list --slug <slug>` (see `docs/CLI_OPS_REFERENCE.md`)
    - Vault CLI (no server): `npm run vault:crud -- tree` (see `docs/CLI_OPS_REFERENCE.md`)
 3. `npm run dev`
 4. Open [http://localhost:3000](http://localhost:3000)
@@ -58,6 +59,7 @@ Markdown-first project and milestone tracker with dashboard UI, automation playb
 - `npm run ops:intake` -> process pending incoming events
 - `npm run mcp:start` -> start local stdio MCP server
 - `npm run mcp:smoke` -> MCP smoke validation
+- `npm run project:facts -- list --slug <slug> [--unassigned]` -> research facts JSON (CLI; see `docs/CLI_OPS_REFERENCE.md`)
 
 ## Data and Layout
 
