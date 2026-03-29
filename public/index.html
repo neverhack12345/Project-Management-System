@@ -16,11 +16,12 @@
     />
     <link rel="stylesheet" href="/styles.css" />
     <link rel="stylesheet" href="/notes.css" />
+    <link rel="stylesheet" href="/vault-overlays.css" />
     <link rel="stylesheet" href="/dashboard.css" />
   </head>
   <body class="vault-app dash-app">
     <div class="dash-layout">
-      <aside class="vault-sidebar" aria-label="Markdown Projects navigation">
+      <aside id="vaultSidebar" class="vault-sidebar" aria-label="Markdown Projects navigation">
         <div class="vault-brand">
           <div class="vault-brand-icon" aria-hidden="true">
             <span class="material-symbols-outlined">dashboard</span>
@@ -113,6 +114,16 @@
         <div class="dash-main-inner vault-panel-reader">
           <header class="vault-main-top">
             <div class="vault-main-top-right">
+              <button
+                type="button"
+                class="vault-icon-btn vault-sidebar-toggle"
+                id="vaultSidebarToggle"
+                aria-expanded="true"
+                aria-controls="vaultSidebar"
+                title="Collapse sidebar"
+              >
+                <span class="material-symbols-outlined vault-ms" aria-hidden="true">chevron_left</span>
+              </button>
               <label class="vault-search-main-wrap">
                 <span class="sr-only">Search projects</span>
                 <span class="material-symbols-outlined vault-search-icon" aria-hidden="true">search</span>
@@ -148,10 +159,6 @@
 
             <section class="controls controls-grid">
       <div class="control-group">
-        <label class="field field-full">
-          <span>Search projects</span>
-          <input id="search" placeholder="Search projects..." title="Search projects by name or slug" />
-        </label>
         <label class="field">
           <span>Status</span>
           <select id="statusFilter">
@@ -482,8 +489,8 @@
       </div>
     </div>
 
-    <section id="historyDrawer" class="drawer hidden dash-modal-overlay dash-history-drawer">
-      <div class="drawer-head">
+    <section id="historyDrawer" class="drawer hidden dash-modal-overlay dash-history-drawer vault-overlay-scrim">
+      <div class="drawer-head vault-overlay-head">
         <h2 id="historyTitle">Project History</h2>
         <button type="button" id="closeHistoryBtn" class="vault-btn-new vault-btn-new--inline vault-btn-new--secondary">Close</button>
       </div>
@@ -546,7 +553,7 @@
       </article>
     </template>
 
-    <div id="taskCreateModal" class="task-modal-overlay" hidden>
+    <div id="taskCreateModal" class="task-modal-overlay vault-overlay-scrim" hidden>
       <div class="task-modal" role="dialog" aria-modal="true" aria-labelledby="taskModalTitle">
         <header class="task-modal-header">
           <h2 id="taskModalTitle">Create or edit Task</h2>
@@ -662,8 +669,8 @@
       </div>
     </div>
 
-    <section id="commandPalette" class="drawer hidden dash-modal-overlay dash-command-palette">
-      <div class="drawer-head">
+    <section id="commandPalette" class="drawer hidden dash-modal-overlay dash-command-palette vault-overlay-scrim">
+      <div class="drawer-head vault-overlay-head">
         <h2>Command Palette</h2>
         <button type="button" id="closePaletteBtn" class="vault-btn-new vault-btn-new--inline vault-btn-new--secondary">Close</button>
       </div>

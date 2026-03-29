@@ -1,3 +1,8 @@
+import { initScrollChrome } from "./shell/scroll-chrome.js";
+import { createFlash } from "./shell/flash.js";
+import * as projectApi from "./api/projects.js";
+import { initVaultSidebarCollapse } from "./shell/sidebar-collapse.js";
+
 const projectList = document.getElementById("projectList");
 const searchInput = document.getElementById("search");
 const statusFilter = document.getElementById("statusFilter");
@@ -6,7 +11,7 @@ const overdueFilter = document.getElementById("overdueFilter");
 const saveViewBtn = document.getElementById("saveViewBtn");
 const savedViews = document.getElementById("savedViews");
 const deleteViewBtn = document.getElementById("deleteViewBtn");
-const flash = document.getElementById("flash");
+const statusFlash = createFlash(document.getElementById("flash"));
 const refreshBtn = document.getElementById("refreshBtn");
 const commandPaletteBtn = document.getElementById("commandPaletteBtn");
 const selectAllProjects = document.getElementById("selectAllProjects");
@@ -186,211 +191,66 @@ const qs = () => {
   return p.toString();
 };
 
-async function fetchProjects() {
-  const res = await fetch(`/api/projects?${qs()}`);
-  return res.json();
-}
-
-async function fetchTimeline() {
-  const res = await fetch("/api/timeline");
-  return res.json();
-}
-async function fetchTaskBoard() {
-  const res = await fetch("/api/tasks/board");
-  return res.json();
-}
-async function fetchHealth() {
-  const res = await fetch("/api/health");
-  return res.json();
-}
-async function fetchAlerts() {
-  const res = await fetch("/api/alerts");
-  return res.json();
-}
-async function fetchActivity() {
-  const res = await fetch("/api/activity?limit=10");
-  return res.json();
-}
-async function fetchActionQueue() {
-  const res = await fetch("/api/playbook/actions");
-  return res.json();
-}
-async function fetchDependencies() {
-  const res = await fetch("/api/dependencies");
-  return res.json();
-}
-async function fetchPortfolio() {
-  const res = await fetch("/api/portfolio");
-  return res.json();
-}
-async function fetchTodayBrief() {
-  const res = await fetch("/api/today-brief");
-  return res.json();
-}
-async function fetchTrends() {
-  const res = await fetch("/api/trends?days=7");
-  return res.json();
-}
-async function fetchOpsState() {
-  const res = await fetch("/api/ops-state");
-  return res.json();
-}
-async function fetchCapacity() {
-  const res = await fetch("/api/capacity?days=7");
-  return res.json();
-}
-async function fetchTimeEntries() {
-  const res = await fetch("/api/time-entries?days=14");
-  return res.json();
-}
-async function fetchIntakeForms() {
-  const res = await fetch("/api/intake/forms");
-  return res.json();
-}
-async function fetchProjectFacts(slug) {
-  const res = await fetch(`/api/projects/${slug}/facts`);
-  const data = await res.json();
-  if (!res.ok || data.ok === false) throw new Error(data.error || "Failed to load facts");
-  return data.facts || [];
-}
-async function addTimeEntry(payload) {
-  const res = await fetch("/api/time-entries", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-  const data = await res.json();
-  if (!res.ok || data.ok === false) throw new Error(data.error || "Failed to log time");
-}
-async function submitIntake(formId, payload) {
-  const res = await fetch("/api/intake/submit", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ formId, payload })
-  });
-  const data = await res.json();
-  if (!res.ok || data.ok === false) throw new Error(data.error || "Failed intake submit");
-  return data;
-}
-async function runAutomation(dryRun) {
-  const res = await fetch("/api/automation/run", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ dryRun })
-  });
-  const data = await res.json();
-  if (!res.ok || data.ok === false) throw new Error(data.error || "Automation run failed");
-  return data;
-}
-async function fetchAutomationRuns() {
-  const res = await fetch("/api/automation/runs?limit=10");
-  return res.json();
-}
-async function exportSnapshot() {
-  const res = await fetch("/api/workspace/export-snapshot", { method: "POST" });
-  const data = await res.json();
-  if (!res.ok || data.ok === false) throw new Error(data.error || "Snapshot export failed");
-  return data;
-}
-async function previewMigration(items) {
-  const res = await fetch("/api/migration/preview", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ items })
-  });
-  const data = await res.json();
-  if (!res.ok || data.ok === false) throw new Error(data.error || "Migration preview failed");
-  return data;
-}
-
 async function saveStatus(slug, status, decisionNote = "", previousStatus = "") {
   const project = currentProjects.find((item) => item.slug === slug);
-  const res = await fetch(`/api/projects/${slug}/status`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status, decisionNote, previousStatus, versionToken: project?.versionToken || "" })
+  const res = await projectApi.patchProjectStatus(slug, {
+    status,
+    decisionNote,
+    previousStatus,
+    versionToken: project?.versionToken || ""
   });
   await handleWriteResponse(res);
 }
 
 async function addTask(slug, task, dueDate, recurrence = "", dependsOn = [], factRefs = []) {
   const project = currentProjects.find((item) => item.slug === slug);
-  const res = await fetch(`/api/projects/${slug}/tasks`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ task, dueDate, recurrence, dependsOn, factRefs, versionToken: project?.versionToken || "" })
+  const res = await projectApi.postProjectTask(slug, {
+    task,
+    dueDate,
+    recurrence,
+    dependsOn,
+    factRefs,
+    versionToken: project?.versionToken || ""
   });
   return handleWriteResponse(res);
-}
-
-async function applyBulkUpdates(updates) {
-  const res = await fetch("/api/projects/bulk", {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ updates })
-  });
-  const data = await res.json();
-  if (!res.ok || data.ok === false) throw new Error(data.error || "Bulk update failed");
-  return data.results || [];
-}
-
-async function fetchHistory(slug) {
-  const res = await fetch(`/api/projects/${slug}/history?limit=5`);
-  const data = await res.json();
-  if (!res.ok || !data.ok) throw new Error(data.error || "Failed to load history");
-  return data.commits || [];
 }
 
 async function saveProjectMeta(slug, payload) {
   const project = currentProjects.find((item) => item.slug === slug);
-  const res = await fetch(`/api/projects/${slug}/meta`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...payload, versionToken: project?.versionToken || "" })
-  });
+  const res = await projectApi.patchProjectMeta(slug, { ...payload, versionToken: project?.versionToken || "" });
   await handleWriteResponse(res);
 }
 
 async function moveTaskLane(projectSlug, taskId, state, versionToken) {
-  const res = await fetch(`/api/projects/${projectSlug}/tasks/${taskId}/state`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ state, versionToken })
-  });
+  const res = await projectApi.patchTaskState(projectSlug, taskId, { state, versionToken });
   await handleWriteResponse(res);
 }
+
 async function createProjectFact(slug, payload) {
   const project = currentProjects.find((item) => item.slug === slug);
-  const res = await fetch(`/api/projects/${slug}/facts`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...payload, versionToken: project?.versionToken || "" })
-  });
+  const res = await projectApi.postProjectFact(slug, { ...payload, versionToken: project?.versionToken || "" });
   return handleWriteResponse(res);
 }
+
 async function updateProjectFact(slug, factId, payload) {
   const project = currentProjects.find((item) => item.slug === slug);
-  const res = await fetch(`/api/projects/${slug}/facts/${factId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...payload, versionToken: project?.versionToken || "" })
-  });
+  const res = await projectApi.patchProjectFact(slug, factId, { ...payload, versionToken: project?.versionToken || "" });
   return handleWriteResponse(res);
 }
 
 async function handleWriteResponse(res) {
   const data = await res.json();
   if (res.status === 409) {
-    flash.textContent = `Conflict: ${data.error}`;
+    statusFlash.show(`Conflict: ${data.error}`, { error: true });
     throw new Error(data.error);
   }
   if (!res.ok || data.ok === false) {
     throw new Error(data.error || "Request failed");
   }
   if (data.commit?.warning) {
-    flash.textContent = data.commit.warning;
+    statusFlash.show(data.commit.warning, { clearAfterMs: null });
   } else {
-    flash.textContent = "";
+    statusFlash.show("");
   }
   return data;
 }
@@ -444,7 +304,7 @@ function populateNewTaskProjectOptions(projects) {
   const slug = newTaskSlug.value;
   populateProjectTaskOptions(slug, newTaskDependsOn, newTaskFactRefs);
   if (slug && !factOptionsByProject.has(slug)) {
-    fetchProjectFacts(slug)
+    projectApi.fetchProjectFacts(slug)
       .then((facts) => {
         factOptionsByProject.set(
           slug,
@@ -571,7 +431,7 @@ function renderProjects(projects) {
     node.querySelector(".saveStatus").addEventListener("click", async () => {
       const note = decisionNoteInput.value.trim();
       if ((statusSelect.value === "blocked" || statusSelect.value === "done") && !note) {
-        flash.textContent = "Decision note is required for blocked/done transitions.";
+        statusFlash.show("Decision note is required for blocked/done transitions.", { error: true });
         return;
       }
       try {
@@ -590,7 +450,7 @@ function renderProjects(projects) {
     node.querySelector(".addTask").addEventListener("click", async () => {
       if (!taskInput.value.trim()) return;
       if (!taskDueDate.value) {
-        flash.textContent = "Task deadline is required.";
+        statusFlash.show("Task deadline is required.", { error: true });
         return;
       }
       const dependsOn = getSelectedValues(taskDeps).map((value) => value.split(" - ")[0]);
@@ -604,7 +464,7 @@ function renderProjects(projects) {
           dependsOn,
           factRefs
         );
-        if (result?.taskId) flash.textContent = `Task created: ${result.taskId}`;
+        if (result?.taskId) statusFlash.show(`Task created: ${result.taskId}`);
         taskInput.value = "";
         taskDueDate.value = new Date().toISOString().slice(0, 10);
         for (const option of taskDeps.options) option.selected = false;
@@ -628,7 +488,7 @@ function renderProjects(projects) {
     async function loadFacts() {
       factList.innerHTML = "";
       try {
-        const facts = await fetchProjectFacts(project.slug);
+        const facts = await projectApi.fetchProjectFacts(project.slug);
         if (!facts.length) {
           factList.innerHTML = "<li>No facts yet.</li>";
           return;
@@ -653,7 +513,7 @@ function renderProjects(projects) {
               });
               await refresh();
             } catch (error) {
-              flash.textContent = error.message;
+              statusFlash.show(error.message, { error: true });
             }
           });
           li.appendChild(document.createTextNode(" "));
@@ -676,7 +536,7 @@ function renderProjects(projects) {
       const source = factSourceInput.value.trim();
       const verificationNote = factNoteInput.value.trim();
       if (status === "verified" && (!source || !verificationNote)) {
-        flash.textContent = "Verified facts require source and verification note.";
+        statusFlash.show("Verified facts require source and verification note.", { error: true });
         return;
       }
       try {
@@ -691,7 +551,7 @@ function renderProjects(projects) {
         factNoteInput.value = "";
         await refresh();
       } catch (error) {
-        flash.textContent = error.message;
+        statusFlash.show(error.message, { error: true });
       }
     });
     loadFacts().catch(() => {});
@@ -708,7 +568,7 @@ function renderProjects(projects) {
       historyList.innerHTML = "";
       historyDrawer.classList.remove("hidden");
       try {
-        const commits = await fetchHistory(project.slug);
+        const commits = await projectApi.fetchProjectHistory(project.slug);
         if (!commits.length) {
           historyList.innerHTML = "<li>No history yet.</li>";
           return;
@@ -747,7 +607,7 @@ function renderKanban(data) {
         await moveTaskLane(payload.projectSlug, payload.taskId, laneId, payload.versionToken);
         await refresh();
       } catch (error) {
-        flash.textContent = error.message;
+        statusFlash.show(error.message, { error: true });
       }
     });
     for (const task of lanes[laneId] || []) {
@@ -1044,7 +904,7 @@ function renderActionQueue(data) {
           await saveProjectMeta(action.projectSlug, action.suggestedPatch || {});
           await refresh();
         } catch (error) {
-          flash.textContent = error.message;
+          statusFlash.show(error.message, { error: true });
         }
       });
       li.appendChild(document.createTextNode(" "));
@@ -1216,22 +1076,22 @@ function renderAutomationRuns(data) {
 async function refresh() {
   const [projectsRes, boardRes, timelineRes, healthRes, alertsRes, actionQueueRes, activityRes, dependenciesRes, portfolioRes, todayBriefRes, trendsRes, opsStateRes, capacityRes, timeEntriesRes, intakeFormsRes, automationRunsRes] =
     await Promise.all([
-      fetchProjects(),
-      fetchTaskBoard(),
-      fetchTimeline(),
-      fetchHealth(),
-      fetchAlerts(),
-      fetchActionQueue(),
-      fetchActivity(),
-      fetchDependencies(),
-      fetchPortfolio(),
-      fetchTodayBrief(),
-      fetchTrends(),
-      fetchOpsState(),
-      fetchCapacity(),
-      fetchTimeEntries(),
-      fetchIntakeForms(),
-      fetchAutomationRuns()
+      projectApi.listProjects(qs()),
+      projectApi.fetchTaskBoard(),
+      projectApi.fetchTimeline(),
+      projectApi.fetchHealth(),
+      projectApi.fetchAlerts(),
+      projectApi.fetchActionQueue(),
+      projectApi.fetchActivity(),
+      projectApi.fetchDependencies(),
+      projectApi.fetchPortfolio(),
+      projectApi.fetchTodayBrief(),
+      projectApi.fetchTrends(),
+      projectApi.fetchOpsState(),
+      projectApi.fetchCapacity(),
+      projectApi.fetchTimeEntries(),
+      projectApi.fetchIntakeForms(),
+      projectApi.fetchAutomationRuns()
     ]);
   renderProjects(projectsRes.projects || []);
   populateNewTaskProjectOptions(projectsRes.projects || []);
@@ -1412,12 +1272,15 @@ applyBulkBtn.addEventListener("click", async () => {
     .map((p) => ({ slug: p.slug, versionToken: p.versionToken, status, priority }));
   if (!updates.length) return;
   try {
-    const results = await applyBulkUpdates(updates);
+    const results = await projectApi.patchProjectsBulk(updates);
     const failed = results.filter((r) => !r.ok).length;
-    flash.textContent = failed ? `Bulk update completed with ${failed} failure(s)` : "Bulk update completed";
+    statusFlash.show(
+      failed ? `Bulk update completed with ${failed} failure(s)` : "Bulk update completed",
+      failed ? { error: true, clearAfterMs: null } : {}
+    );
     await refresh();
   } catch (error) {
-    flash.textContent = error.message;
+    statusFlash.show(error.message, { error: true });
   }
 });
 for (const input of [quietHoursInput, digestOverdue, digestStale, digestBlocked]) {
@@ -1428,7 +1291,7 @@ for (const input of [quietHoursInput, digestOverdue, digestStale, digestBlocked]
 }
 addTimeEntryBtn.addEventListener("click", async () => {
   try {
-    await addTimeEntry({
+    await projectApi.postTimeEntry({
       slug: timeSlug.value.trim(),
       minutes: Number(timeMinutes.value || 0),
       note: timeNote.value.trim()
@@ -1437,24 +1300,24 @@ addTimeEntryBtn.addEventListener("click", async () => {
     timeNote.value = "";
     await refresh();
   } catch (error) {
-    flash.textContent = error.message;
+    statusFlash.show(error.message, { error: true });
   }
 });
 createProjectBtn.addEventListener("click", async () => {
   const name = newProjectName.value.trim();
   if (!name) {
-    flash.textContent = "Project name is required.";
+    statusFlash.show("Project name is required.", { error: true });
     return;
   }
   const dueDays = Number(newProjectDueDays.value || 30);
   if (!Number.isFinite(dueDays) || dueDays < 1) {
-    flash.textContent = "Due in days must be at least 1.";
+    statusFlash.show("Due in days must be at least 1.", { error: true });
     return;
   }
   const estimateHoursRaw = newProjectEstimateHours.value.trim();
   const estimateHours = estimateHoursRaw ? Number(estimateHoursRaw) : undefined;
   if (estimateHoursRaw && (!Number.isFinite(estimateHours) || estimateHours < 0)) {
-    flash.textContent = "Estimate hours must be a non-negative number.";
+    statusFlash.show("Estimate hours must be a non-negative number.", { error: true });
     return;
   }
   try {
@@ -1466,12 +1329,12 @@ createProjectBtn.addEventListener("click", async () => {
       priority: newProjectPriority.value || undefined
     };
     if (estimateHoursRaw) payload.estimateHours = estimateHours;
-    const result = await submitIntake("quick-project", payload);
-    flash.textContent = `Project created: ${result?.slug || name}`;
+    const result = await projectApi.postIntakeSubmit("quick-project", payload);
+    statusFlash.show(`Project created: ${result?.slug || name}`);
     clearCreateProjectForm();
     await refresh();
   } catch (error) {
-    flash.textContent = error.message;
+    statusFlash.show(error.message, { error: true });
   }
 });
 createTaskBtn.addEventListener("click", async () => {
@@ -1485,25 +1348,25 @@ createTaskBtn.addEventListener("click", async () => {
     dueDate = newTaskDueDate.value;
   }
   if (!slug) {
-    flash.textContent = "Project slug is required to add a task.";
+    statusFlash.show("Project slug is required to add a task.", { error: true });
     return;
   }
   if (!task) {
-    flash.textContent = "Task description is required.";
+    statusFlash.show("Task description is required.", { error: true });
     return;
   }
   if (!dueDate) {
-    flash.textContent = "Task due date is required (YYYY-MM-DD).";
+    statusFlash.show("Task due date is required (YYYY-MM-DD).", { error: true });
     return;
   }
   if (!isIsoDateClient(dueDate)) {
-    flash.textContent = "Due date must be a valid calendar date.";
+    statusFlash.show("Due date must be a valid calendar date.", { error: true });
     return;
   }
   if (taskModalFutureDatesOnly?.checked) {
     const today = new Date().toISOString().slice(0, 10);
     if (dueDate < today) {
-      flash.textContent = "Due date must be today or later when “Only future dates” is checked.";
+      statusFlash.show("Due date must be today or later when “Only future dates” is checked.", { error: true });
       return;
     }
   }
@@ -1512,8 +1375,10 @@ createTaskBtn.addEventListener("click", async () => {
   const recurrenceSkip = /^(none|no|-)$/i.test(recurrenceTrim);
   const recurrence = recurrenceSkip ? "" : parseRecurrenceFromText(recurrenceRaw);
   if (recurrenceTrim && !recurrenceSkip && !recurrence) {
-    flash.textContent =
-      "Recurrence text was not recognized. Use phrases like “daily”, “every week”, or “monthly”, or leave blank.";
+    statusFlash.show(
+      "Recurrence text was not recognized. Use phrases like “daily”, “every week”, or “monthly”, or leave blank.",
+      { error: true }
+    );
     return;
   }
   try {
@@ -1530,27 +1395,30 @@ createTaskBtn.addEventListener("click", async () => {
       try {
         await saveProjectMeta(slug, { priority: metaPriority });
       } catch (metaErr) {
-        flash.textContent = `Task created (${result?.taskId || "ok"}) but project priority was not updated: ${metaErr.message}`;
+        statusFlash.show(
+          `Task created (${result?.taskId || "ok"}) but project priority was not updated: ${metaErr.message}`,
+          { error: true, clearAfterMs: null }
+        );
         clearCreateTaskForm();
         closeTaskCreateModal();
         await refresh();
         return;
       }
     }
-    if (result?.taskId) flash.textContent = `Task created: ${result.taskId}`;
-    else flash.textContent = "Task created successfully.";
+    if (result?.taskId) statusFlash.show(`Task created: ${result.taskId}`);
+    else statusFlash.show("Task created successfully.");
     clearCreateTaskForm();
     closeTaskCreateModal();
     await refresh();
   } catch (error) {
-    flash.textContent = error.message;
+    statusFlash.show(error.message, { error: true });
   }
 });
 newTaskSlug.addEventListener("change", () => {
   const slug = newTaskSlug.value;
   populateProjectTaskOptions(slug, newTaskDependsOn, newTaskFactRefs);
   if (!factOptionsByProject.has(slug)) {
-    fetchProjectFacts(slug)
+    projectApi.fetchProjectFacts(slug)
       .then((facts) => {
         factOptionsByProject.set(
           slug,
@@ -1584,7 +1452,7 @@ submitIntakeBtn.addEventListener("click", async () => {
       const task = intakeTitle.value.trim();
       const dueDate = intakeDueDate.value;
       if (!slug || !task || !dueDate) {
-        flash.textContent = "Quick Task requires project slug, title, and due date.";
+        statusFlash.show("Quick Task requires project slug, title, and due date.", { error: true });
         return;
       }
       payload = {
@@ -1600,7 +1468,7 @@ submitIntakeBtn.addEventListener("click", async () => {
     } else if (formId === "quick-project") {
       const name = intakeTitle.value.trim();
       if (!name) {
-        flash.textContent = "Quick Project requires a project name in Title / Name.";
+        statusFlash.show("Quick Project requires a project name in Title / Name.", { error: true });
         return;
       }
       payload = {
@@ -1614,7 +1482,7 @@ submitIntakeBtn.addEventListener("click", async () => {
     } else if (formId === "incoming-event") {
       const title = intakeTitle.value.trim();
       if (!title) {
-        flash.textContent = "Incoming Event requires a title.";
+        statusFlash.show("Incoming Event requires a title.", { error: true });
         return;
       }
       payload = {
@@ -1629,55 +1497,55 @@ submitIntakeBtn.addEventListener("click", async () => {
         kind: intakeKind.value || ""
       };
     } else {
-      flash.textContent = "Select an intake form type.";
+      statusFlash.show("Select an intake form type.", { error: true });
       return;
     }
-    const result = await submitIntake(formId, payload);
+    const result = await projectApi.postIntakeSubmit(formId, payload);
     intakeList.innerHTML = `<li>Submitted: ${result.result?.type || "n/a"} ${result.result?.slug || ""}</li>`;
     clearIntakeForm();
     await refresh();
   } catch (error) {
-    flash.textContent = error.message;
+    statusFlash.show(error.message, { error: true });
   }
 });
 intakeFormSelect.addEventListener("change", updateIntakeFieldVisibility);
 runAutomationDryBtn.addEventListener("click", async () => {
   try {
-    const result = await runAutomation(true);
-    flash.textContent = `Automation dry-run evaluated ${result.evaluated} rule(s)`;
+    const result = await projectApi.postAutomationRun(true);
+    statusFlash.show(`Automation dry-run evaluated ${result.evaluated} rule(s)`);
     await refresh();
   } catch (error) {
-    flash.textContent = error.message;
+    statusFlash.show(error.message, { error: true });
   }
 });
 runAutomationBtn.addEventListener("click", async () => {
   try {
-    const result = await runAutomation(false);
-    flash.textContent = `Automation run evaluated ${result.evaluated} rule(s)`;
+    const result = await projectApi.postAutomationRun(false);
+    statusFlash.show(`Automation run evaluated ${result.evaluated} rule(s)`);
     await refresh();
   } catch (error) {
-    flash.textContent = error.message;
+    statusFlash.show(error.message, { error: true });
   }
 });
 exportSnapshotBtn.addEventListener("click", async () => {
   try {
-    const result = await exportSnapshot();
-    flash.textContent = `Snapshot exported: ${result.path}`;
+    const result = await projectApi.postExportSnapshot();
+    statusFlash.show(`Snapshot exported: ${result.path}`);
   } catch (error) {
-    flash.textContent = error.message;
+    statusFlash.show(error.message, { error: true });
   }
 });
 previewMigrationBtn.addEventListener("click", async () => {
   try {
     const items = JSON.parse(migrationInput.value || "[]");
-    const result = await previewMigration(items);
+    const result = await projectApi.postMigrationPreview(items);
     migrationList.innerHTML = `
       <li>Total: ${result.total}</li>
       <li>Normalized: ${result.normalized.length}</li>
       <li>Issues: ${result.issues.length}</li>
     `;
   } catch (error) {
-    flash.textContent = error.message;
+    statusFlash.show(error.message, { error: true });
   }
 });
 saveViewBtn.addEventListener("click", () => {
@@ -1731,24 +1599,15 @@ renderSavedViews();
 clearCreateTaskForm();
 refresh();
 
-function initDashboardScrollChrome() {
-  const docCol = document.querySelector(".dash-app .dash-dashboard-scroll");
-  const mainTop = document.querySelector(".dash-app .vault-main-top");
-  if (!docCol || !mainTop) return;
-  let scrollTimer = null;
-  const onScroll = () => {
-    mainTop.classList.toggle("is-doc-scrolled", docCol.scrollTop > 20);
-    docCol.classList.add("is-scrolling");
-    window.clearTimeout(scrollTimer);
-    scrollTimer = window.setTimeout(() => {
-      docCol.classList.remove("is-scrolling");
-    }, 1500);
-  };
-  docCol.addEventListener("scroll", onScroll, { passive: true });
-  onScroll();
-}
+initScrollChrome({
+  scrollRoot: document.querySelector(".dash-app .dash-dashboard-scroll"),
+  header: document.querySelector(".dash-app .vault-main-top")
+});
 
-initDashboardScrollChrome();
+initVaultSidebarCollapse({
+  toggleEls: document.querySelectorAll(".vault-sidebar-toggle"),
+  sidebarEl: document.getElementById("vaultSidebar")
+});
 
 document.getElementById("dashCommandPaletteBtn")?.addEventListener("click", () => {
   commandPaletteBtn?.click();
@@ -1756,6 +1615,8 @@ document.getElementById("dashCommandPaletteBtn")?.addEventListener("click", () =
 
 document.getElementById("dashHelpLink")?.addEventListener("click", (e) => {
   e.preventDefault();
-  flash.textContent =
-    "Search and filters: scroll above. Command palette: sidebar button or ⌃/⌘K. Sections: left nav. Escape closes overlays.";
+  statusFlash.show(
+    "Search and filters: use the toolbar search. Command palette: sidebar button or ⌃/⌘K. Sections: left nav. Escape closes overlays.",
+    { clearAfterMs: 12000 }
+  );
 });

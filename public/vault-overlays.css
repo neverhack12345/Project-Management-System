@@ -1,0 +1,42 @@
+/* Shared overlay tokens for Markdown Projects + Second Brain (load after notes.css) */
+
+.vault-app .vault-overlay-scrim {
+  background: rgba(6, 14, 32, 0.78);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.vault-app .drawer-head.vault-overlay-head {
+  width: min(560px, 100%);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.vault-app .drawer-head.vault-overlay-head h2 {
+  margin: 0;
+  font-family: var(--vault-font-headline);
+  font-size: 1.1rem;
+  color: var(--vault-text);
+}
+
+.vault-app .drawer-head.vault-overlay-head button:not(.vault-btn-new) {
+  background: var(--vault-container-low);
+  color: var(--vault-text);
+  border: 1px solid var(--vault-border);
+}
+
+/* Native <dialog> panels + backdrop (notes, diagram expand, etc.) */
+.vault-app dialog.vault-overlay-panel {
+  border: 1px solid var(--vault-border);
+  border-radius: 14px;
+  background: var(--vault-elevated);
+  color: var(--vault-text);
+}
+
+.vault-app dialog.vault-overlay-panel::backdrop {
+  background: rgba(6, 14, 32, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}

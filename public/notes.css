@@ -96,16 +96,41 @@
 
 /* ——— Sidebar ——— */
 .vault-sidebar {
+  flex: 0 0 var(--vault-sidebar-w);
   width: var(--vault-sidebar-w);
+  max-width: var(--vault-sidebar-w);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   background: var(--vault-sidebar);
   border-right: none;
   min-height: 0;
+  min-width: 0;
   height: 100%;
   max-height: 100%;
   box-shadow: 12px 0 40px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  transition:
+    flex-basis 0.22s ease,
+    max-width 0.22s ease,
+    width 0.22s ease,
+    opacity 0.18s ease,
+    box-shadow 0.22s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vault-sidebar {
+    transition: none;
+  }
+}
+
+.vault-app.vault-sidebar-collapsed .vault-sidebar {
+  flex-basis: 0;
+  width: 0;
+  max-width: 0;
+  opacity: 0;
+  pointer-events: none;
+  box-shadow: none;
 }
 
 .vault-brand {
@@ -1283,19 +1308,11 @@ a.vault-btn-new--secondary:visited {
   font-size: 13px;
 }
 
-/* Dialog */
+/* Dialog (surface + backdrop: vault-overlays.css .vault-overlay-panel) */
 .notes-dialog {
   margin: auto;
   padding: 22px 24px;
   max-width: 440px;
-  border: 1px solid var(--vault-border);
-  border-radius: 14px;
-  background: var(--vault-elevated);
-  color: var(--vault-text);
-}
-.notes-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(4px);
 }
 .notes-dialog-title {
   margin: 0 0 16px;
@@ -1373,16 +1390,8 @@ a.vault-btn-new--secondary:visited {
   width: min(96vw, 1400px);
   height: min(92vh, 900px);
   max-height: 92vh;
-  border: 1px solid var(--vault-border);
-  border-radius: 14px;
-  background: var(--vault-elevated);
-  color: var(--vault-text);
   flex-direction: column;
   overflow: hidden;
-}
-.vault-diagram-expand-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.72);
-  backdrop-filter: blur(6px);
 }
 .vault-diagram-expand-dialog[open] {
   display: flex;

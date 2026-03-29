@@ -16,9 +16,10 @@
     />
     <link rel="stylesheet" href="/styles.css" />
     <link rel="stylesheet" href="/notes.css" />
+    <link rel="stylesheet" href="/vault-overlays.css" />
   </head>
   <body class="vault-app">
-    <aside class="vault-sidebar" aria-label="Vault navigation">
+    <aside id="vaultSidebar" class="vault-sidebar" aria-label="Vault navigation">
       <div class="vault-brand">
         <div class="vault-brand-icon" aria-hidden="true">
           <span class="material-symbols-outlined">hub</span>
@@ -88,6 +89,16 @@
             </div>
           </div>
           <div class="vault-main-top-right">
+            <button
+              type="button"
+              class="vault-icon-btn vault-sidebar-toggle"
+              id="vaultSidebarToggle"
+              aria-expanded="true"
+              aria-controls="vaultSidebar"
+              title="Collapse sidebar"
+            >
+              <span class="material-symbols-outlined vault-ms" aria-hidden="true">chevron_left</span>
+            </button>
             <label class="vault-search-main-wrap">
               <span class="sr-only">Search vault</span>
               <span class="material-symbols-outlined vault-search-icon" aria-hidden="true">search</span>
@@ -179,6 +190,15 @@
 
       <div class="vault-graph-panel hidden" id="panelGraph">
         <div class="vault-graph-toolbar">
+          <button
+            type="button"
+            class="vault-icon-btn vault-sidebar-toggle"
+            aria-expanded="true"
+            aria-controls="vaultSidebar"
+            title="Collapse sidebar"
+          >
+            <span class="material-symbols-outlined vault-ms" aria-hidden="true">chevron_left</span>
+          </button>
           <button type="button" class="vault-chip-btn" id="backFromGraphBtn">← Files</button>
           <p class="vault-graph-hint">Link graph from vault notes (resolved links solid; broken references below).</p>
           <button type="button" id="refreshGraphBtn" class="vault-chip-btn">Refresh graph</button>
@@ -188,7 +208,7 @@
       </div>
     </div>
 
-    <dialog id="newNoteDialog" class="notes-dialog">
+    <dialog id="newNoteDialog" class="notes-dialog vault-overlay-panel">
       <h2 class="notes-dialog-title">New note</h2>
       <label class="notes-dialog-field">
         <span>Path (under vault/)</span>
@@ -205,7 +225,7 @@
       </div>
     </dialog>
 
-    <dialog id="diagramExpandDialog" class="vault-diagram-expand-dialog" aria-labelledby="diagramExpandTitle">
+    <dialog id="diagramExpandDialog" class="vault-diagram-expand-dialog vault-overlay-panel" aria-labelledby="diagramExpandTitle">
       <div class="vault-diagram-expand-dialog-inner">
         <div class="vault-diagram-expand-toolbar">
           <span id="diagramExpandTitle" class="vault-diagram-expand-title">Diagram</span>

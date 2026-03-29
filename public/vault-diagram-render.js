@@ -1,4 +1,5 @@
 import mermaid from "https://esm.sh/mermaid@11.4.1";
+import { escapeHtml } from "./shell/dom-utils.js";
 
 let mermaidInitialized = false;
 
@@ -81,14 +82,6 @@ export function graphMermaidSource(graph) {
     if (a && b) lines.push(`  ${a} --> ${b}`);
   }
   return lines.join("\n");
-}
-
-function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 export async function runMermaidOnElements(nodes) {

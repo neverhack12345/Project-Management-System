@@ -260,9 +260,6 @@ body.vault-app.dash-app {
   box-sizing: border-box;
   border: none;
   border-radius: 0;
-  background: rgba(6, 14, 32, 0.78);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   padding: max(24px, 5vh) 20px 40px;
   overflow-y: auto;
   display: flex;
@@ -273,27 +270,6 @@ body.vault-app.dash-app {
 
 .dash-app .dash-modal-overlay.hidden {
   display: none !important;
-}
-
-.dash-app .dash-modal-overlay .drawer-head {
-  width: min(560px, 100%);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
-.dash-app .dash-modal-overlay .drawer-head h2 {
-  margin: 0;
-  font-family: var(--vault-font-headline);
-  font-size: 1.1rem;
-  color: var(--vault-text);
-}
-
-.dash-app .dash-modal-overlay .drawer-head button:not(.vault-btn-new) {
-  background: var(--vault-container-low);
-  color: var(--vault-text);
-  border: 1px solid var(--vault-border);
 }
 
 .dash-app .dash-command-palette input {

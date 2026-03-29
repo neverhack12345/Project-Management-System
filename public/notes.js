@@ -13,6 +13,10 @@ import {
   renderVaultDiagramFile
 } from "./vault-diagram-render.js";
 import { renderVaultLinkGraph } from "./vault-d3-graph.js";
+import { initScrollChrome } from "./shell/scroll-chrome.js";
+import { createFlash } from "./shell/flash.js";
+import { escapeAttr } from "./shell/dom-utils.js";
+import { initVaultSidebarCollapse } from "./shell/sidebar-collapse.js";
 
 marked.use({ gfm: true, breaks: true });
 
@@ -87,15 +91,9 @@ let currentSource = "";
 let isEditing = false;
 let currentListView = "recent";
 
+const vaultFlash = createFlash(vaultFlashEl);
 function showFlash(message, isError) {
-  vaultFlashEl.textContent = message || "";
-  vaultFlashEl.classList.toggle("error", Boolean(isError));
-  if (message && !isError) {
-    window.clearTimeout(showFlash._t);
-    showFlash._t = window.setTimeout(() => {
-      vaultFlashEl.textContent = "";
-    }, 5000);
-  }
+  vaultFlash.show(message || "", { error: Boolean(isError) });
 }
 
 function loadStarredSet() {
@@ -357,13 +355,6 @@ async function preprocessMarkdownMermaidEmbeds(markdown, fromPath) {
   }
 
   return md;
-}
-
-function escapeAttr(s) {
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/</g, "&lt;");
 }
 
 function rewriteVaultMarkdownProtocols(html) {
@@ -1245,26 +1236,17 @@ document.getElementById("refreshGraphBtn").addEventListener("click", () => {
   loadGraphPanel();
 });
 
-function initVaultScrollChrome() {
-  const docCol = document.querySelector(".vault-doc-column");
-  const mainTop = document.querySelector(".vault-main-top");
-  if (!docCol || !mainTop) return;
-  let scrollTimer = null;
-  const onScroll = () => {
-    mainTop.classList.toggle("is-doc-scrolled", docCol.scrollTop > 20);
-    docCol.classList.add("is-scrolling");
-    window.clearTimeout(scrollTimer);
-    scrollTimer = window.setTimeout(() => {
-      docCol.classList.remove("is-scrolling");
-    }, 1500);
-  };
-  docCol.addEventListener("scroll", onScroll, { passive: true });
-  onScroll();
-}
 
 async function boot() {
   initDiagramExpandDialog();
-  initVaultScrollChrome();
+  initScrollChrome({
+    scrollRoot: document.querySelector(".vault-doc-column"),
+    header: document.querySelector(".vault-main-top")
+  });
+  initVaultSidebarCollapse({
+    toggleEls: document.querySelectorAll(".vault-sidebar-toggle"),
+    sidebarEl: document.getElementById("vaultSidebar")
+  });
   setListView("recent");
   setEditUi(false);
   btnEditNote.disabled = true;
